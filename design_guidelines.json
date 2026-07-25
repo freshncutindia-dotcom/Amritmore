@@ -1,0 +1,160 @@
+{
+  "app_name": "FreshCuts",
+  "personality": "3 Editorial Mobile LIGHT structure with 4 Tactile floating interactions",
+  "personality_one_liner": "A premium, farm-to-table organic market that breathes with elegant typography and delightful bouncy floating interactions.",
+  "color": {
+    "surface": "#FDFBF7",
+    "onSurface": "#2B3A2C",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#2B3A2C",
+    "surfaceTertiary": "#F4EFE6",
+    "onSurfaceTertiary": "#4A5A4A",
+    "surfaceInverse": "#2B3A2C",
+    "onSurfaceInverse": "#FDFBF7",
+    "brand": "#3A7D44",
+    "brandPrimary": "#3A7D44",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#D95D39",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E8F3E6",
+    "onBrandTertiary": "#2B3A2C",
+    "success": "#3A7D44",
+    "onSuccess": "#FFFFFF",
+    "warning": "#F5A623",
+    "onWarning": "#FFFFFF",
+    "error": "#D0421B",
+    "onError": "#FFFFFF",
+    "info": "#4A90E2",
+    "onInfo": "#FFFFFF",
+    "border": "#E3DCCF",
+    "borderStrong": "#C8BEAB",
+    "divider": "#E3DCCF"
+  },
+  "typography": {
+    "displayFontFamily": "Fraunces",
+    "textFontFamily": "DM Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous organic rhythm. Floating elements sit clearly above the background. Use large bottom padding to clear floating action buttons.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 2,
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Floating Action Buttons (FAB)",
+      "Sticky header backgrounds over scrolling lists",
+      "Bottom tab bar"
+    ],
+    "dont's": [
+      "Product cards",
+      "Form fields",
+      "Text sections"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home",
+      "purpose": "Feed of fresh produce categories and featured farm goods.",
+      "states": {
+        "loading": "Pull-to-refresh custom veggie loader or centered spinner.",
+        "empty": "Illustration of a basket + 'No fresh items found right now.'",
+        "error": "Readable error message + 'Retry' button."
+      },
+      "layout": "Large hero carousel at the top showing fresh farms (with gradient scrim). Horizontal scroll for categories (Whole Veg, Pre-cut Veg). Vertical masonry or 2-col grid for featured products. A floating, bouncy Cart FAB placed at bottom right."
+    },
+    {
+      "name": "ProductListing",
+      "purpose": "Grid of vegetables and fruits with filter chips for cut types.",
+      "states": {
+        "loading": "Skeleton grid.",
+        "empty": "Illustration of an empty cutting board + 'Try another cut type.'",
+        "error": "Readable error message + 'Retry' button."
+      },
+      "layout": "Sticky, glassmorphic header containing filter chips (Sliced, Diced, Shredded, Whole). 2-column grid of product cards. Cards have floating soft shadows. Fly-to-cart animation on 'Add' press."
+    },
+    {
+      "name": "ProductDetail",
+      "purpose": "Detailed view of the selected produce, cut-type selector, and add-to-cart action.",
+      "states": {
+        "loading": "Spinner.",
+        "empty": "Not applicable.",
+        "error": "Readable error message + 'Retry' button."
+      },
+      "layout": "Hero image at the top with pinch/hover to preview. Large elegant display title. Segmented control for cut-type. Quantity picker (250g, 500g, 1kg). Sticky floating glass CTA at the bottom to Add to Cart."
+    },
+    {
+      "name": "Cart",
+      "purpose": "Manage selected items, swipe to delete, and check pincode serviceability.",
+      "states": {
+        "loading": "Spinner.",
+        "empty": "Empty basket illustration + 'Your basket is empty. Add some fresh veggies!'",
+        "error": "Readable error message + 'Retry' button."
+      },
+      "layout": "List of items with swipe-to-delete gesture. Animated total price counter at the bottom. Pin code input field to check serviceability before proceeding to checkout."
+    }
+  ],
+  "images": {
+    "hero_farm": {
+      "url": "https://images.pexels.com/photos/31818756/pexels-photo-31818756.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Organic farm fresh word typography"
+    },
+    "whole_vegetables": {
+      "url": "https://images.pexels.com/photos/3987343/pexels-photo-3987343.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Fresh whole organic vegetables on table"
+    },
+    "cut_vegetables": {
+      "url": "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwxfHxjaG9wcGVkJTIwZGljZWQlMjBzbGljZWQlMjBmcmVzaCUyMHZlZ2V0YWJsZXN8ZW58MHx8fHwxNzg0OTU4NjY3fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Sliced colorful bell peppers on a cutting board"
+    }
+  },
+  "haptics": {
+    "add_to_cart": "selection",
+    "swipe_delete": "impactHeavy",
+    "pull_to_refresh": "impactLight",
+    "cut_type_change": "selection",
+    "checkout_success": "notificationSuccess"
+  },
+  "instructions_to_main_agent": [
+    "Prioritize smooth Reanimated micro-interactions: The cart button should have a bouncy spring scale on addition. Use a fly-to-cart animation when items are added from the grid.",
+    "Implement the swipe-to-delete in the cart natively using react-native-gesture-handler.",
+    "Ensure 'glass' blur surfaces have a tinted base under them (opacity >=70% of surface color) to guarantee text readability.",
+    "Do NOT use typical purple/indigo/blue colors. Strictly stick to the earthy, organic palette defined (green, terracotta, warm whites).",
+    "Hero images and image cards MUST have a gradient scrim (transparent to dark) on the bottom 40% if text overlays them.",
+    "Typography: Use Fraunces for large elegant headers (size xl to 3xl) and DM Sans for highly readable body and labels. Limit max font weight to 500.",
+    "Implement safe areas properly, especially preventing the sticky/floating bottom cart CTA from overlapping the home indicator."
+  ]
+}
