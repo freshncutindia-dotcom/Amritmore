@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, FlatList } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator, FlatList, Platform } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { Asset } from "expo-asset";
+import React from "react";
 
 import { theme, CATEGORIES } from "@/src/theme";
 import { apiFetch } from "@/src/api";
@@ -21,8 +23,45 @@ type Product = {
 
 const HERO_URL = "https://images.pexels.com/photos/3987343/pexels-photo-3987343.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
 const HERO_VIDEO = require("../../assets/videos/hero.mp4");
+const HERO_VIDEO_WEBM = require("../../assets/videos/hero.webm");
+const HERO_VIDEO_WEBM_URI = Asset.fromModule(HERO_VIDEO_WEBM).uri;
 
 function HeroVideo() {
+  const videoRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    if (Platform.OS === "web" && videoRef.current) {
+      const el = videoRef.current;
+      el.muted = true;
+      const p = el.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    }
+  }, []);
+
+  if (Platform.OS === "web") {
+    return React.createElement("video", {
+      ref: videoRef,
+      src: HERO_VIDEO_WEBM_URI,
+      autoPlay: true,
+      muted: true,
+      defaultMuted: true,
+      loop: true,
+      playsInline: true,
+      preload: "auto",
+      style: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+      },
+    });
+  }
+  return <NativeHeroVideo />;
+}
+
+function NativeHeroVideo() {
   const player = useVideoPlayer(HERO_VIDEO, (p) => {
     p.loop = true;
     p.muted = true;
