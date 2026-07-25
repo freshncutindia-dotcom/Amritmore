@@ -297,6 +297,43 @@ async def download_products_template():
     )
 
 
+@api.get("/templates/prices.csv")
+async def download_prices_template():
+    """CSV with every current SKU pre-filled. Fill 'new_price' column and send back."""
+    docs = await db.products.find({}, {"_id": 0}).sort([("category", 1), ("name", 1)]).to_list(500)
+    lines = ["sku,name,local_name,category,base_unit,current_price,new_price"]
+    for d in docs:
+        sku = d.get("sku") or ""
+        name = (d.get("name") or "").replace(",", " ")
+        local = (d.get("local_name") or "").replace(",", " ")
+        cat = d.get("category") or ""
+        unit = d.get("unit") or ""
+        price = d.get("price") or ""
+        lines.append(f"{sku},{name},{local},{cat},{unit},{price},")
+    return Response(
+        content="\n".join(lines) + "\n",
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="freshcuts_prices_template.csv"'},
+    )
+
+
+class PriceUpdate(BaseModel):
+    sku: str
+    price: float
+
+
+@api.post("/admin/prices/bulk")
+async def bulk_update_prices(updates: List[PriceUpdate], _=Depends(require_admin)):
+    updated, missing = 0, []
+    for u in updates:
+        r = await db.products.update_one({"sku": u.sku}, {"$set": {"price": float(u.price)}})
+        if r.matched_count:
+            updated += 1
+        else:
+            missing.append(u.sku)
+    return {"updated": updated, "missing_skus": missing}
+
+
 @api.post("/auth/register", response_model=TokenOut)
 async def register(body: RegisterIn):
     email = body.email.lower()
