@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { useVideoPlayer, VideoView } from "expo-video";
 
 import { theme, CATEGORIES } from "@/src/theme";
 import { apiFetch } from "@/src/api";
@@ -19,6 +20,24 @@ type Product = {
 };
 
 const HERO_URL = "https://images.pexels.com/photos/3987343/pexels-photo-3987343.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
+const HERO_VIDEO = require("../../assets/videos/hero.mp4");
+
+function HeroVideo() {
+  const player = useVideoPlayer(HERO_VIDEO, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+  return (
+    <VideoView
+      player={player}
+      style={StyleSheet.absoluteFillObject}
+      contentFit="cover"
+      nativeControls={false}
+      allowsPictureInPicture={false}
+    />
+  );
+}
 
 export default function Home() {
   const insets = useSafeAreaInsets();
@@ -79,12 +98,13 @@ export default function Home() {
 
         {/* Horizontal promo/video banner slot */}
         <View style={styles.videoBanner}>
-          <Image source={{ uri: HERO_URL }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+          <HeroVideo />
           <LinearGradient
-            colors={["rgba(43,58,44,0.15)", "rgba(43,58,44,0.75)"]}
+            colors={["rgba(43,58,44,0.05)", "rgba(43,58,44,0.65)"]}
             style={StyleSheet.absoluteFillObject}
+            pointerEvents="none"
           />
-          <View style={styles.videoBannerBody}>
+          <View style={styles.videoBannerBody} pointerEvents="box-none">
             <View style={styles.videoTag}><Ionicons name="play-circle" size={12} color="#fff" /><Text style={styles.videoTagTxt}>How we cut</Text></View>
             <Text style={styles.videoTitle}>Farm-fresh, cut on demand.</Text>
             <Pressable testID="hero-cta-btn" onPress={() => router.push("/(tabs)/shop")} style={styles.videoCta}>
@@ -94,11 +114,18 @@ export default function Home() {
           </View>
         </View>
 
-        {/* Categories */}
-        <Animated.View entering={FadeInDown.delay(50)} style={styles.section}>
-          <Text style={styles.sectionTitle}>Shop by category</Text>
-          <View style={styles.catGrid}>
-            {CATEGORIES.map((c, i) => (
+        {/* Categories — horizontal scroll (compact) */}
+        <Animated.View entering={FadeInDown.delay(50)} style={styles.sectionTight}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.sectionTitle}>Shop by category</Text>
+            <Pressable onPress={() => router.push("/(tabs)/shop")}><Text style={styles.link}>See all</Text></Pressable>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, gap: theme.spacing.md }}
+          >
+            {CATEGORIES.map((c) => (
               <Pressable
                 key={c.id}
                 testID={`category-${c.id}`}
@@ -109,12 +136,11 @@ export default function Home() {
                 }}
               >
                 <Image source={c.image} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                <LinearGradient colors={["transparent", "rgba(0,0,0,0.55)"]} style={StyleSheet.absoluteFillObject} />
-                <Text style={styles.catEmoji}>{c.emoji}</Text>
+                <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={StyleSheet.absoluteFillObject} />
                 <Text style={styles.catLabel}>{c.label}</Text>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
         </Animated.View>
 
         {/* Subscribe & Save promo */}
@@ -288,9 +314,9 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: theme.spacing.lg },
 
   catGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: theme.spacing.lg, gap: theme.spacing.sm },
-  catCard: { width: "48.5%", height: 96, borderRadius: theme.radius.lg, overflow: "hidden", justifyContent: "flex-end", padding: theme.spacing.sm, ...theme.shadow.sm },
+  catCard: { width: 150, height: 170, borderRadius: theme.radius.lg, overflow: "hidden", justifyContent: "flex-end", padding: theme.spacing.md, ...theme.shadow.sm },
   catEmoji: { fontSize: 22, position: "absolute", top: 8, right: 10 },
-  catLabel: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  catLabel: { color: "#fff", fontWeight: "700", fontSize: 14, lineHeight: 18 },
 
   bigCard: { width: 175, backgroundColor: theme.colors.surface2, borderRadius: theme.radius.lg, overflow: "hidden", ...theme.shadow.sm },
   bigImg: { width: "100%", height: 130 },
