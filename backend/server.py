@@ -32,7 +32,7 @@ JWT_ALGO = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7
 
 # Product schema/seed version. Bump to force reseed on schema changes.
-SEED_VERSION = 7
+SEED_VERSION = 9
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -563,27 +563,7 @@ app.include_router(api)
 STANDARD_WEIGHTS = ["250g", "500g", "1kg"]
 ALL_CUTS = ["sliced", "diced", "shredded", "batonnet", "cubed", "grated", "julienne"]
 
-SEED_PRODUCTS = [
-    # ---- Whole vegetables ----
-    {"name": "Roma Tomatoes", "description": "Sun-ripened plum tomatoes — perfect for sauces, salads and cooking.", "category": "whole", "cut_type": "whole", "price": 45, "unit": "500g", "image": "https://images.unsplash.com/photo-1546470427-e5380b6d1cf6?w=600&q=80", "tags": ["fresh", "organic"], "available_cuts": ["whole"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Yellow Onions", "description": "Locally sourced onions with strong flavor — kitchen essential.", "category": "whole", "cut_type": "whole", "price": 35, "unit": "500g", "image": "https://images.unsplash.com/photo-1580201092675-a0a6a6cafbb1?w=600&q=80", "tags": ["essential"], "available_cuts": ["whole"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Baby Potatoes", "description": "Small, thin-skinned potatoes — perfect for roasting.", "category": "whole", "cut_type": "whole", "price": 55, "unit": "1kg", "image": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80", "tags": ["essential"], "available_cuts": ["whole"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Farm Broccoli", "description": "Deep-green crowns, hand-picked this morning.", "category": "whole", "cut_type": "whole", "price": 89, "unit": "500g", "image": "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?w=600&q=80", "tags": ["organic"], "available_cuts": ["whole"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Baby Spinach", "description": "Tender leafy greens, tripled-washed.", "category": "whole", "cut_type": "whole", "price": 39, "unit": "250g", "image": "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=600&q=80", "tags": ["leafy"], "available_cuts": ["whole"], "available_weights": ["250g", "500g"]},
-    {"name": "Red Bell Peppers", "description": "Crunchy, sweet capsicum from local farms.", "category": "whole", "cut_type": "whole", "price": 65, "unit": "500g", "image": "https://images.unsplash.com/photo-1525607551316-4a8e16d1f9ba?w=600&q=80", "tags": ["colorful"], "available_cuts": ["whole"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Purple Cabbage", "description": "Crispy heads with vibrant color for slaws.", "category": "whole", "cut_type": "whole", "price": 55, "unit": "1kg", "image": "https://images.unsplash.com/photo-1594282486552-05b4d80fbb9f?w=600&q=80", "tags": [], "available_cuts": ["whole"], "available_weights": ["500g", "1kg"]},
-    {"name": "Rainbow Carrots", "description": "A colorful trio — orange, purple & yellow.", "category": "whole", "cut_type": "whole", "price": 79, "unit": "500g", "image": "https://images.unsplash.com/photo-1447175008436-054170c2e979?w=600&q=80", "tags": ["colorful"], "available_cuts": ["whole"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Cauliflower", "description": "Firm white heads — great for curries and roasts.", "category": "whole", "cut_type": "whole", "price": 49, "unit": "1kg", "image": "https://images.unsplash.com/photo-1568584711271-6c929fb49b60?w=600&q=80", "tags": [], "available_cuts": ["whole"], "available_weights": ["500g", "1kg"]},
-    # Whole fruits
-    {"name": "Alphonso Mangoes", "description": "The king of mangoes — buttery & aromatic.", "category": "whole", "cut_type": "whole", "price": 349, "unit": "1kg", "image": "https://images.unsplash.com/photo-1553279768-865429fa0078?w=600&q=80", "tags": ["seasonal", "premium"], "available_cuts": ["whole"], "available_weights": ["500g", "1kg"]},
-    {"name": "Fuji Apples", "description": "Crisp bite, high-altitude grown.", "category": "whole", "cut_type": "whole", "price": 199, "unit": "1kg", "image": "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=600&q=80", "tags": [], "available_cuts": ["whole"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Kiwi Fruit", "description": "Zespri golden kiwis, tangy & sweet.", "category": "whole", "cut_type": "whole", "price": 189, "unit": "500g", "image": "https://images.unsplash.com/photo-1585059895524-72359e06133a?w=600&q=80", "tags": ["vitamin-c"], "available_cuts": ["whole"], "available_weights": ["250g", "500g"]},
-    {"name": "Dragon Fruit", "description": "Exotic pink flesh, subtle sweetness.", "category": "whole", "cut_type": "whole", "price": 129, "unit": "500g", "image": "https://images.unsplash.com/photo-1527325678964-54921661f888?w=600&q=80", "tags": ["exotic"], "available_cuts": ["whole"], "available_weights": ["250g", "500g"]},
-    {"name": "Strawberries", "description": "Handpicked from Mahabaleshwar hills.", "category": "whole", "cut_type": "whole", "price": 149, "unit": "250g", "image": "https://images.unsplash.com/photo-1543528176-61b239494933?w=600&q=80", "tags": ["seasonal"], "available_cuts": ["whole"], "available_weights": ["250g", "500g"]},
-
-    # ---- Pre-cut vegetables (imported from Freshncut catalog) ----
-    # placeholder — actual list appended programmatically below via CUTVEG_CATALOG
-]
+SEED_PRODUCTS = []
 
 
 # Freshncut pre-cut vegetables catalog (SKU, English name, Local name, list of cut types)
@@ -752,42 +732,144 @@ def _build_cutveg_products():
 SEED_PRODUCTS.extend(_build_cutveg_products())
 
 
-SEED_PRODUCTS.extend([
-    # ---- Pre-cut fruits ----
-    {"name": "Mango", "description": "Sweet mango — diced cubes or sliced strips, chilled & ready.", "category": "cut-fruit", "cut_type": "diced", "price": 199, "unit": "250g", "image": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80", "tags": ["ready-to-eat"], "available_cuts": ["diced", "sliced", "cubed"], "available_weights": ["250g", "500g"], "cut_images": {
-        "diced": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80",
-        "sliced": "https://images.unsplash.com/photo-1553279768-865429fa0078?w=600&q=80",
-        "cubed": "https://images.unsplash.com/photo-1591073113125-e46713c829ed?w=600&q=80",
-    }},
-    {"name": "Pineapple", "description": "Golden rings, cored & ready.", "category": "cut-fruit", "cut_type": "sliced", "price": 129, "unit": "500g", "image": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=600&q=80", "tags": ["ready-to-eat"], "available_cuts": ["sliced", "cubed", "diced"], "available_weights": ["250g", "500g"], "cut_images": {
-        "sliced": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=600&q=80",
-        "cubed": "https://images.unsplash.com/photo-1490474504059-bf2db5ab2348?w=600&q=80",
-        "diced": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80",
-    }},
-    {"name": "Watermelon", "description": "Seedless watermelon, hydrating cubes.", "category": "cut-fruit", "cut_type": "cubed", "price": 99, "unit": "500g", "image": "https://images.unsplash.com/photo-1595475207225-428b62bda831?w=600&q=80", "tags": ["hydrating"], "available_cuts": ["cubed", "sliced"], "available_weights": ["500g", "1kg"]},
-    {"name": "Papaya", "description": "Ripe papaya, digestive friendly cuts.", "category": "cut-fruit", "cut_type": "cubed", "price": 89, "unit": "500g", "image": "https://images.unsplash.com/photo-1517282009859-f000ec3b26fe?w=600&q=80", "tags": [], "available_cuts": ["cubed", "sliced", "diced"], "available_weights": ["250g", "500g"]},
-    {"name": "Mixed Fruit Bowl", "description": "Watermelon, papaya, kiwi & mango — cubed.", "category": "cut-fruit", "cut_type": "cubed", "price": 179, "unit": "500g", "image": "https://images.unsplash.com/photo-1490474504059-bf2db5ab2348?w=600&q=80", "tags": ["mixed", "healthy"], "available_cuts": ["cubed"], "available_weights": ["250g", "500g"]},
+# Whole vegetables & fruits (from user's "Whole veggies and fruits" file — first sheet)
+WHOLE_CATALOG = [
+    # Vegetables
+    ("WHLAMT", "Amaranth", "Rajgira / Lal Math"), ("WHLASH", "Ash Gourd", "Petha / Kohla"),
+    ("WHLASP", "Asparagus", "Shatavari"), ("WHLBCN", "Baby Corn", "Baby Corn"),
+    ("WHLBNS", "Banana Stem", "Tana / Khod"), ("WHLBSL", "Basil Leaves", "Tulsi Patta"),
+    ("WHLBET", "Baby Potato", "Dum Aloo"), ("WHLBRG", "Beetroot", "Chukandar / Beet"),
+    ("WHLBTG", "Bitter Gourd", "Karela / Karli"), ("WHLBBH", "Bottle Gourd", "Loki / Dudhi"),
+    ("WHLBKT", "Brinjal Bharata", "Bharata Baingan / Vangi"), ("WHLBRB", "Brinjal Kateri", "Baingan / Vangi"),
+    ("WHLCHG", "Broad / Flat Beans", "Sem / Ghevada / Val"), ("WHLCCM", "Cabbage", "Patta Gobi / Kobi"),
+    ("WHLCHM", "Capsicum", "Shimla Mirch / Mirchi"), ("WHLCRT", "Capsicum Mix", "Shimla Mirch Lal & Hirvi"),
+    ("WHLCLF", "Carrot", "Gajar"), ("WHLCTM", "Cauliflower", "Phul Gobi / Kobi"),
+    ("WHLCLB", "Cherry Tomato", "Cherry Tamatar"), ("WHLCCN", "Cluster Bean", "Gwar / Gavar"),
+    ("WHLCOL", "Coconut", "Nariyal / Naral"), ("WLCOR",  "Colocasia", "Arbi / Aloo"),
+    ("WLCWP",  "Coriander", "Hara Dhaniya / Kothinmbir"), ("WLCCB",  "Cowpea Beans", "Lobia / Chawali"),
+    ("WLCRI",  "Cucumber", "Khira / Kakadi"), ("WLDLL",  "Curry Leaves", "Curry Patta / Kadhi Patta"),
+    ("WLDRM",  "Dill Leaves", "Suva / Shepu"), ("WLFNG",  "Drumstick", "Shevga"),
+    ("WLFRB",  "Fenugreek", "Methi"), ("WLGRL",  "French Beans", "Sem Fali / Farasbee"),
+    ("WLGN",   "Garlic", "Lahsun / Lasun"), ("WLAWL",  "Ginger", "Adrak / Aale"),
+    ("WLCH",   "Gooseberry", "Awala / Amla"), ("WLGRP",  "Green Chilli", "Hari Mirch / Mirchi"),
+    ("WLGXM",  "Green Peas", "Matar / Hirva Vatana"), ("WLNT",   "Green Pumpkin", "Kaddu / Bhopla"),
+    ("WLIVG",  "Groundnut Pods", "Mungfali / Bhuimug"), ("WLLDF",  "Ivy Gourd", "Tindora / Tendali"),
+    ("WLLMN",  "Lady's Finger", "Bhindi / Bhendi"), ("WLLMG",  "Lemon", "Nimbu / Limbu"),
+    ("WLLSM",  "Lemon Grass", "Nimbu Ghaas / Gavati Chaha"), ("WLMIN",  "Lotus Stem", "Kamal Kakadi"),
+    ("WLMSR",  "Mint Leaves", "Pudina"), ("WLONN",  "Mushroom", "Chatrak / Alambi"),
+    ("WLPNG",  "Onion", "Pyaj / Kanda"), ("WLPOT",  "Pointed Gourd", "Parwal / Parval"),
+    ("WLRDS",  "Potato", "Aloo / Batata"), ("WLRBN",  "Radish", "Muli / Mula"),
+    ("WRPP",   "Raw Banana", "Kaccha Kela"), ("WRCG",   "Raw Papaya", "Kaccha Papita / Papaya"),
+    ("WRDG",   "Red Cabbage", "Lal Gobhi / Lal Kobi"), ("WLSMO",  "Ridge Gourd", "Turai / Dodka"),
+    ("WLSNG",  "Sambar Onion", "Sambar Pyaj / Kanda"), ("WLPI",   "Snake Gourd", "Chichinda / Padwal"),
+    ("WLSPG",  "Spinach", "Palak"), ("WLSR",   "Sponge Gourd", "Gilki / Ghosale"),
+    ("WLSPR",  "Spring Onion", "Hara Pyaj / Kanda Pat"), ("WLSWT",  "Sprouts", "Sprouts"),
+    ("WLSWP",  "Sweet Corn", "Makai / Maka"), ("WLSTA",  "Sweet Potato", "Shakarkand / Ratale"),
+    ("WLTOM",  "Sweet Tamarind", "Imli / Chinch"), ("WLTRN",  "Tomato", "Tamatar"),
+    ("WLYAM",  "Turnips", "Shalgam / Salgam"), ("WLYPM",  "Yam", "Suran"),
+    ("WLAPL",  "Yellow Pumpkin", "Kaddu / Lal Bhopla"),
+    # Fruits (whole)
+    ("WLB-APL", "Apple", "Shimla / Kinnaur"), ("WLORG",  "Banana", "Kela"),
+    ("WLPPY",  "Orange", "Mosambi"), ("WLPPL",  "Papaya", "Papai"),
+    ("WLPOM",  "Pineapple", "Ananas"), ("WLSWL",  "Pomegranate", "Anar / Dalim"),
+    ("WLWML",  "Sweet Lemon", "Santra"), ("WLTBZ",  "Watermelon", "Tarbooz / Kalingad"),
+]
 
-    # ---- Ready-to-cook mixes ----
-    {"name": "Stir-fry Mix", "description": "Bell peppers, baby corn, broccoli & carrots — wok-ready.", "category": "ready-mix", "cut_type": "mix", "price": 149, "unit": "300g", "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80", "tags": ["quick-meal", "wok"], "available_cuts": ["mix"], "available_weights": ["300g", "500g"], "recipes": [
-        {"title": "Quick Asian Stir-fry", "time_mins": 12, "servings": 2, "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80", "ingredients": ["1 pack Stir-fry Mix", "2 tbsp soy sauce", "1 tbsp sesame oil", "1 tsp minced garlic", "Salt & chilli flakes"], "steps": ["Heat sesame oil in a wok on high flame.", "Add minced garlic, sauté for 20 seconds.", "Toss in the stir-fry mix, cook 4-5 minutes.", "Add soy sauce, salt, and chilli flakes.", "Serve hot with rice or noodles."]},
-    ]},
-    {"name": "Biryani Veggie Mix", "description": "Beans, carrots, cauliflower & peas — biryani-ready.", "category": "ready-mix", "cut_type": "mix", "price": 129, "unit": "300g", "image": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=80", "tags": ["indian", "quick-meal"], "available_cuts": ["mix"], "available_weights": ["300g", "500g"], "recipes": [
-        {"title": "One-pot Veg Biryani", "time_mins": 30, "servings": 3, "image": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=80", "ingredients": ["1 pack Biryani Veggie Mix", "1 cup basmati rice", "2 cups water", "1 sliced onion", "Biryani masala", "Ghee, salt, mint leaves"], "steps": ["Wash rice, soak for 20 minutes.", "Heat ghee, fry onions till golden.", "Add veggie mix and biryani masala, sauté 3 min.", "Layer with rice and hot water. Salt to taste.", "Cover, cook on low for 15 minutes. Garnish with mint."]},
-    ]},
-    {"name": "Soup Base Mix", "description": "Celery, leeks, carrots, garlic & herbs.", "category": "ready-mix", "cut_type": "mix", "price": 109, "unit": "250g", "image": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80", "tags": ["comfort"], "available_cuts": ["mix"], "available_weights": ["250g", "500g"], "recipes": [
-        {"title": "Country Vegetable Soup", "time_mins": 25, "servings": 4, "image": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80", "ingredients": ["1 pack Soup Base Mix", "4 cups water/stock", "2 tbsp butter", "1 bay leaf", "Cracked pepper, salt"], "steps": ["Melt butter, sauté soup mix for 4 minutes.", "Add stock, bay leaf, and bring to a boil.", "Simmer for 15 minutes until veggies are tender.", "Season with salt and cracked pepper.", "Serve hot with crusty bread."]},
-    ]},
-    {"name": "Curry Cut Mix", "description": "Onion, tomato, ginger-garlic — cut for curry.", "category": "ready-mix", "cut_type": "mix", "price": 89, "unit": "300g", "image": "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600&q=80", "tags": ["indian", "quick-meal"], "available_cuts": ["mix"], "available_weights": ["300g", "500g"], "recipes": [
-        {"title": "5-min Curry Base", "time_mins": 10, "servings": 3, "image": "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600&q=80", "ingredients": ["1 pack Curry Cut Mix", "2 tbsp oil", "1 tsp cumin", "1 tsp turmeric", "1 tsp red chilli powder", "Salt to taste"], "steps": ["Heat oil, splutter cumin.", "Add curry cut mix, sauté 5 min.", "Add turmeric, chilli, salt. Cook 3 min.", "Add 1 cup water for gravy base.", "Ready to add your protein or veggies!"]},
-    ]},
-    {"name": "Salad Bowl Mix", "description": "Lettuce, cherry tomatoes, cucumber, olives.", "category": "ready-mix", "cut_type": "mix", "price": 159, "unit": "250g", "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80", "tags": ["healthy", "no-cook"], "available_cuts": ["mix"], "available_weights": ["250g", "500g"], "recipes": [
-        {"title": "Mediterranean Bowl", "time_mins": 5, "servings": 2, "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80", "ingredients": ["1 pack Salad Bowl Mix", "2 tbsp olive oil", "1 tbsp lemon juice", "50g feta cheese", "Oregano, salt, pepper"], "steps": ["Empty salad mix into a large bowl.", "Whisk olive oil, lemon juice, salt & oregano.", "Toss dressing over salad.", "Crumble feta on top.", "Serve chilled."]},
-    ]},
-    {"name": "Pav Bhaji Mix", "description": "Potato, cauliflower, peas, capsicum — bhaji-ready.", "category": "ready-mix", "cut_type": "mix", "price": 119, "unit": "500g", "image": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&q=80", "tags": ["indian", "street-food"], "available_cuts": ["mix"], "available_weights": ["500g", "1kg"], "recipes": [
-        {"title": "Mumbai Pav Bhaji", "time_mins": 25, "servings": 4, "image": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&q=80", "ingredients": ["1 pack Pav Bhaji Mix", "3 tbsp butter", "2 tbsp pav bhaji masala", "1 lemon", "Coriander leaves", "Pav buns"], "steps": ["Boil the veggie mix till soft, mash coarsely.", "Heat butter, add masala, sauté 1 minute.", "Add mashed veggies, cook 8-10 minutes.", "Squeeze lemon, top with coriander.", "Toast pav in butter, serve hot."]},
-    ]},
-])
+# Pre-cut fruits (from user's file — first sheet)
+CUTFRUIT_CATALOG = [
+    ("FNCAPL", "Apple", "Shimla / Kinnaur", ["cubes", "wedges"]),
+    ("FNCBNN", "Banana", "Kela", ["sliced", "large-sliced"]),
+    ("FNCORG", "Orange", "Mosambi", ["cubes", "wedges"]),
+    ("FNCPPY", "Papaya", "Papai", ["cubes", "wedges"]),
+    ("FNCPPL", "Pineapple", "Ananas", ["cubes", "sliced"]),
+    ("FNCPOM", "Pomegranate", "Anar / Dalim", ["peeled"]),
+    ("FNCSWL", "Sweet Lemon", "Santra", ["cubes", "wedges"]),
+    ("FNCWML", "Watermelon", "Tarbooz / Kalingad", ["cubes", "wedges"]),
+]
+
+# Ready-to-cook premixes (from user's file — first sheet, FNP codes)
+READYMIX_CATALOG = [
+    ("FNPDTS", "Daily Table Salad", "Cucumber • Carrot • Tomato • Onion Slices + Chat Masala Pouch"),
+    ("FNPGJP", "Gujarati Panchkutiyu Shaak Mix", "Yam, Brinjal, Ridge Gourd, Bottle Gourd, Peas, Coconut, Curry Leaves"),
+    ("FNPGJU", "Gujarati Undhiyu Mix", "Yam, Potato, French Beans, Raw Banana, Coriander, Coconut"),
+    ("FNPJMV", "Jain Mix Vegetables", "French Beans, Peas, Ridge Gourd, Cucumber, Bottle Gourd, Cabbage, Tomato & Coconut"),
+    ("FNPJPB", "Jain Pav Bhaji Mix", "Tomato, Capsicum, Cauliflower, Peas, Coriander"),
+    ("FNFJHD", "Jain / Handvo Mix", "Peas, Bottle Gourd, Capsicum, Corn"),
+    ("FNPMNS", "Manchow Soup-mix", "Garlic-Ginger, Cabbage, Green Chilli, Onion, Spring Onion, Carrot, French Beans"),
+    ("FNPMSL", "Misal-pav Mix", "Onion, Tomato, Mataki, Moong, Chawali & White Peas Sprouts, Coriander"),
+    ("FNPMPV", "Mix Vegetables", "Potato, Peas, Capsicum, Carrot, French Beans, Cauliflower"),
+    ("FNPMXB", "Mix Veggies to Boil / Steam", "Cauliflower, Carrot, French Beans, Peas"),
+    ("FNPPVB", "Pav Bhaji Mix Vegetables", "Tomato, Capsicum, Onion, Peas, Coriander, Ginger-Garlic Paste"),
+    ("FNPPRM", "Pulav Ready Mix", "Onion, Peas, Tomato, Carrot, French Beans"),
+    ("FNPRMV", "Raita Mix Vegetables", "Onion, Cucumber, Green Chilli, Curry & Mint Leaves"),
+    ("FNPKHI", "Regular Khichadi Mix", "Potato, Cauliflower, Cabbage, Peas, Onion, Garlic-Ginger"),
+    ("FNPVBR", "Regular Vegetable Biryani Mix", "Potato, Peas, Onion, Carrot, French Beans, Cauliflower, Green Chilli"),
+    ("FNPSMR", "Sambhar Mix", "Onion, Drumstick, Lady Finger, Tomato, Red Pumpkin, Brinjal"),
+    ("FNPSWC", "Sweet Corn Soup-mix", "Sweet Corn, Spring Onion, Carrot, French Beans, Garlic, Ginger"),
+    ("FNPVGS", "Vegetable Soup-mix", "Garlic, Spring Onion, Carrot, Peas, French Beans, Sweet Corn, Cabbage"),
+]
+
+_WHOLE_DEFAULT_IMG = "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80"
+_FRUIT_IMAGES = {
+    "apple": "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?w=600&q=80",
+    "banana": "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600&q=80",
+    "orange": "https://images.unsplash.com/photo-1587496679742-bad053cd6fbb?w=600&q=80",
+    "papaya": "https://images.unsplash.com/photo-1517282009859-f000ec3b26fe?w=600&q=80",
+    "pineapple": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=600&q=80",
+    "pomegranate": "https://images.unsplash.com/photo-1615485500704-8e990f9900f7?w=600&q=80",
+    "sweet lemon": "https://images.unsplash.com/photo-1587496679742-bad053cd6fbb?w=600&q=80",
+    "watermelon": "https://images.unsplash.com/photo-1595475207225-428b62bda831?w=600&q=80",
+}
+_READYMIX_IMAGES = {
+    "salad": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80",
+    "biryani": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=80",
+    "pav bhaji": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&q=80",
+    "sambhar": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",
+    "soup": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",
+    "khichadi": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=80",
+    "pulav": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=80",
+    "raita": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80",
+    "undhiyu": "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80",
+    "handvo": "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80",
+    "mix": "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80",
+}
+
+
+def _pick_readymix_img(name: str) -> str:
+    ln = name.lower()
+    for k, v in _READYMIX_IMAGES.items():
+        if k in ln:
+            return v
+    return "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80"
+
+
+for sku, name, local in WHOLE_CATALOG:
+    ln = name.lower()
+    img = _FRUIT_IMAGES.get(ln) or _CUTVEG_IMAGE_BY_NAME.get(ln, _WHOLE_DEFAULT_IMG)
+    SEED_PRODUCTS.append({
+        "sku": sku, "name": name, "local_name": local, "category": "whole", "cut_type": "whole",
+        "price": 49.0, "unit": "500g", "image": img, "stock": 60, "tags": ["fresh"],
+        "description": f"Fresh whole {name.lower()} ({local}) — farm to your kitchen.",
+        "available_cuts": ["whole"], "available_weights": ["250g", "500g", "1kg"],
+    })
+
+for sku, name, local, cuts in CUTFRUIT_CATALOG:
+    img = _FRUIT_IMAGES.get(name.lower(), "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80")
+    SEED_PRODUCTS.append({
+        "sku": sku, "name": name, "local_name": local, "category": "cut-fruit", "cut_type": cuts[0],
+        "price": 129.0, "unit": "250g", "image": img, "stock": 30, "tags": ["ready-to-eat"],
+        "description": f"Fresh pre-cut {name.lower()} ({local}). Choose your cut: {', '.join(cuts)}.",
+        "available_cuts": cuts, "available_weights": ["250g", "500g"],
+    })
+
+for sku, name, ingredients in READYMIX_CATALOG:
+    SEED_PRODUCTS.append({
+        "sku": sku, "name": name, "local_name": ingredients, "category": "ready-mix", "cut_type": "mix",
+        "price": 149.0, "unit": "300g", "image": _pick_readymix_img(name), "stock": 25,
+        "tags": ["quick-meal", "ready-to-cook"],
+        "description": f"{name} — pre-cut & portioned. Includes: {ingredients}.",
+        "available_cuts": ["mix"], "available_weights": ["300g", "500g"],
+    })
 
 SEED_PINCODES = [
     {"pincode": "560001", "area": "Bengaluru Central", "delivery_fee": 0, "eta_hours": 2},
