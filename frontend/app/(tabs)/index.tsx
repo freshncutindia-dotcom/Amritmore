@@ -59,34 +59,32 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.brand} />}
       >
-        {/* Hero */}
-        <View style={[styles.hero, { paddingTop: insets.top + 12 }]}>
+        {/* Brand header with logo */}
+        <View style={[styles.brandHeader, { paddingTop: insets.top + 12 }]}>
+          <View style={styles.brandTop}>
+            <Pressable testID="home-menu-btn" onPress={drawer.open} style={styles.brandMenuBtn}>
+              <Ionicons name="menu" size={22} color={theme.colors.onSurface} />
+            </Pressable>
+            <View style={styles.locPill}>
+              <Ionicons name="location" size={12} color={theme.colors.brand} />
+              <Text style={styles.locTxt}>Deliver to Bengaluru</Text>
+            </View>
+            <Pressable testID="profile-quick-btn" onPress={() => router.push("/(tabs)/profile")} style={styles.brandMenuBtn}>
+              <Ionicons name="person-outline" size={20} color={theme.colors.onSurface} />
+            </Pressable>
+          </View>
+          <Image source={require("../../assets/images/logo.webp")} style={styles.brandLogo} contentFit="contain" />
+          <Text style={styles.brandGreet}>{user?.name ? `Hi ${user.name.split(" ")[0]}, ` : ""}Farm-fresh, minutes away.</Text>
+        </View>
+
+        {/* Hero CTA banner */}
+        <View style={styles.hero}>
           <Image source={{ uri: HERO_URL }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
           <LinearGradient
             colors={["rgba(43,58,44,0.15)", "rgba(43,58,44,0.75)"]}
             style={StyleSheet.absoluteFillObject}
           />
           <View style={styles.heroContent}>
-            <View style={styles.heroTopRow}>
-              <Pressable
-                testID="home-menu-btn"
-                onPress={drawer.open}
-                style={styles.heroIcon}
-              >
-                <Ionicons name="menu" size={20} color="#fff" />
-              </Pressable>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.heroHi}>Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""}</Text>
-                <Text style={styles.heroLoc}><Ionicons name="location" size={12} color="#fff" /> Deliver to Bengaluru</Text>
-              </View>
-              <Pressable
-                testID="profile-quick-btn"
-                onPress={() => router.push("/(tabs)/profile")}
-                style={styles.heroIcon}
-              >
-                <Ionicons name="person-outline" size={20} color="#fff" />
-              </Pressable>
-            </View>
             <Text style={styles.heroTitle}>Farm‑fresh{"\n"}delivered in hours.</Text>
             <Pressable
               testID="hero-cta-btn"
@@ -259,13 +257,21 @@ export function FloatingCartFab({ onPress }: { onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  hero: { height: 340, overflow: "hidden", paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.xl },
-  heroContent: { flex: 1, justifyContent: "space-between" },
+  hero: { height: 220, overflow: "hidden", paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.xl, marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.lg, borderRadius: theme.radius.lg, ...theme.shadow.md },
+  heroContent: { flex: 1, justifyContent: "flex-end", paddingBottom: 4 },
   heroTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   heroHi: { color: "#fff", fontSize: 13, opacity: 0.9 },
   heroLoc: { color: "#fff", fontSize: 12, marginTop: 4 },
   heroIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.2)", borderWidth: 1, borderColor: "rgba(255,255,255,0.35)" },
-  heroTitle: { color: "#fff", fontSize: 34, fontWeight: "700", lineHeight: 40 },
+  heroTitle: { color: "#fff", fontSize: 26, fontWeight: "700", lineHeight: 32, marginBottom: 12 },
+
+  brandHeader: { backgroundColor: theme.colors.surface, paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.md, alignItems: "center" },
+  brandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: theme.spacing.sm },
+  brandMenuBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface2, ...theme.shadow.sm },
+  locPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.colors.brandTint, paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill },
+  locTxt: { fontSize: 11, fontWeight: "600", color: theme.colors.brand },
+  brandLogo: { width: 260, height: 110, marginTop: theme.spacing.xs },
+  brandGreet: { fontSize: 13, color: theme.colors.onSurfaceMuted, marginTop: -8, marginBottom: theme.spacing.sm, textAlign: "center" },
   heroCta: { alignSelf: "flex-start", backgroundColor: "#fff", paddingHorizontal: 18, paddingVertical: 12, borderRadius: theme.radius.pill, flexDirection: "row", alignItems: "center", gap: 8, ...theme.shadow.md },
   heroCtaText: { color: theme.colors.onSurface, fontWeight: "600", fontSize: 14 },
 

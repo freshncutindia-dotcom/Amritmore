@@ -112,11 +112,7 @@ function SideDrawer({ visible, onClose, onFullyClosed }: { visible: boolean; onC
           <View style={{ flex: 1, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 12 }}>
             {/* Brand + user */}
             <View style={styles.brandRow}>
-              <View style={styles.leaf}><Ionicons name="leaf" size={20} color={theme.colors.brand} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.brand}>FreshCuts</Text>
-                <Text style={styles.brandSub}>Farm to your door</Text>
-              </View>
+              <Image source={require("../../assets/images/logo.webp")} style={styles.brandLogo} contentFit="contain" />
               <Pressable testID="drawer-close" onPress={onClose} style={styles.closeBtn}>
                 <Ionicons name="close" size={20} color={theme.colors.onSurface} />
               </Pressable>
@@ -208,10 +204,8 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 24,
     ...theme.shadow.lg,
   },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: theme.spacing.lg, marginBottom: 16 },
-  leaf: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.brandTint, alignItems: "center", justifyContent: "center" },
-  brand: { fontSize: 20, fontWeight: "700", color: theme.colors.onSurface },
-  brandSub: { fontSize: 11, color: theme.colors.onSurfaceMuted },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: theme.spacing.lg, marginBottom: 16, justifyContent: "space-between" },
+  brandLogo: { width: 170, height: 60 },
   closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.7)", alignItems: "center", justifyContent: "center" },
   userCard: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: theme.spacing.lg, backgroundColor: "rgba(255,255,255,0.6)", padding: 12, borderRadius: theme.radius.lg },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.brand, alignItems: "center", justifyContent: "center" },

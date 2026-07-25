@@ -71,7 +71,7 @@ export default function Profile() {
           ))}
         </View>
 
-        <Text style={styles.footer}>FreshCuts · Farm to your door 🌱</Text>
+        <Text style={styles.footer}>Freshncut · The Salads & Pre-cut FNVs 🌱</Text>
       </ScrollView>
     </View>
   );

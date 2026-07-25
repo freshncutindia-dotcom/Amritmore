@@ -1,5 +1,6 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -50,8 +51,7 @@ export default function Auth() {
         </Pressable>
 
         <View style={styles.logoWrap}>
-          <Text style={styles.logoEmoji}>🌿</Text>
-          <Text style={styles.brand}>FreshCuts</Text>
+          <Image source={require("../assets/images/logo.webp")} style={styles.logoImg} contentFit="contain" />
         </View>
         <Text style={styles.h1}>{mode === "login" ? "Welcome back" : "Create your account"}</Text>
         <Text style={styles.sub}>{mode === "login" ? "Sign in to place & track orders" : "Fresh farm produce, minutes away"}</Text>
@@ -120,9 +120,8 @@ export default function Auth() {
 
 const styles = StyleSheet.create({
   back: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface2, marginBottom: 20, ...theme.shadow.sm },
-  logoWrap: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 24 },
-  logoEmoji: { fontSize: 32 },
-  brand: { fontSize: 22, fontWeight: "700", color: theme.colors.brand },
+  logoWrap: { alignItems: "center", marginBottom: 24 },
+  logoImg: { width: 220, height: 90 },
   h1: { fontSize: 30, fontWeight: "700", color: theme.colors.onSurface },
   sub: { fontSize: 14, color: theme.colors.onSurfaceMuted, marginTop: 6 },
   field: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: theme.colors.surface2, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, paddingHorizontal: 14, height: 52 },
