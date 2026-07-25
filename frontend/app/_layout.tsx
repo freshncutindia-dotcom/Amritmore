@@ -9,6 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AppProvider } from "@/src/store";
 import { DrawerProvider } from "@/src/components/SideDrawer";
+import BackgroundAurora from "@/src/components/BackgroundAurora";
 
 LogBox.ignoreAllLogs(true);
 
@@ -31,14 +32,11 @@ export default function RootLayout() {
         <AppProvider>
           <DrawerProvider>
             <View style={{ flex: 1, backgroundColor: "#F2F8FE" }}>
+              <BackgroundAurora />
               <Image
                 source={require("../assets/images/bg.jpg")}
-                style={[StyleSheet.absoluteFillObject, { opacity: 0.08 }]}
+                style={[StyleSheet.absoluteFillObject, { opacity: 0.05 }]}
                 contentFit="cover"
-                pointerEvents="none"
-              />
-              <View
-                style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(210,232,250,0.35)" }]}
                 pointerEvents="none"
               />
               <StatusBar barStyle="dark-content" backgroundColor="#F2F8FE" />

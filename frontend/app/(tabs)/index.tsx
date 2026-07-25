@@ -158,7 +158,7 @@ export default function Home() {
               style={styles.catQuick}
             >
               <View style={styles.catQuickIcon}>
-                <Ionicons name={c.icon as any} size={22} color={theme.colors.brandDark} />
+                <Ionicons name={c.icon as any} size={18} color={theme.colors.brandDark} />
               </View>
               <Text numberOfLines={2} style={styles.catQuickLbl}>{c.label}</Text>
             </Pressable>
@@ -371,34 +371,34 @@ const styles = StyleSheet.create({
   catStrip: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     marginTop: theme.spacing.xs,
     marginBottom: theme.spacing.xs,
-    gap: theme.spacing.sm,
+    gap: 6,
   },
   catQuick: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
   },
   catQuickIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.85)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(79,163,227,0.25)",
+    borderColor: "rgba(79,163,227,0.28)",
     ...theme.shadow.sm,
   },
   catQuickLbl: {
-    fontSize: 10.5,
+    fontSize: 9.5,
     fontWeight: "600",
     color: theme.colors.onSurface,
-    marginTop: 6,
+    marginTop: 5,
     textAlign: "center",
-    lineHeight: 13,
+    lineHeight: 12,
   },
   videoTag: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.22)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.pill, marginBottom: 6 },
   videoTagTxt: { color: "#fff", fontSize: 10, fontWeight: "700", letterSpacing: 0.4 },

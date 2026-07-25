@@ -91,7 +91,7 @@ class Recipe(BaseModel):
 class ProductIn(BaseModel):
     name: str
     description: str
-    category: Literal["cut-veg", "cut-fruit", "whole", "ready-mix"]
+    category: Literal["cut-veg", "cut-fruit", "whole", "organic", "ready-mix"]
     cut_type: str = "whole"
     price: float
     unit: str = "500g"
