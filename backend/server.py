@@ -3,7 +3,7 @@ import uuid
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict
 
 import jwt
 from bcrypt import hashpw, gensalt, checkpw
@@ -31,7 +31,7 @@ JWT_ALGO = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7
 
 # Product schema/seed version. Bump to force reseed on schema changes.
-SEED_VERSION = 3
+SEED_VERSION = 5
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -77,6 +77,15 @@ class UserOut(BaseModel):
     role: str
 
 
+class Recipe(BaseModel):
+    title: str
+    time_mins: int = 15
+    servings: int = 2
+    image: str
+    ingredients: List[str] = []
+    steps: List[str] = []
+
+
 class ProductIn(BaseModel):
     name: str
     description: str
@@ -89,6 +98,8 @@ class ProductIn(BaseModel):
     tags: List[str] = []
     available_cuts: List[str] = ["whole"]
     available_weights: List[str] = ["500g"]
+    cut_images: Dict[str, str] = {}
+    recipes: List[Recipe] = []
 
 
 class Product(ProductIn):
@@ -140,6 +151,76 @@ class Order(OrderIn):
 class CheckoutSessionIn(BaseModel):
     order_id: str
     origin_url: str
+
+
+# --- Subscription models ---
+class SubscriptionIn(BaseModel):
+    box_type: Literal["essentials", "mixed", "premium"]
+    frequency: Literal["weekly", "biweekly"]
+    delivery_day: str = "Monday"
+    pincode: str
+    address: str
+    phone: str
+
+
+class Subscription(SubscriptionIn):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_email: str
+    status: Literal["active", "paused", "cancelled"] = "active"
+    price_per_box: float
+    box_name: str
+    box_items: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    next_delivery: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=3))
+
+
+BOXES: Dict[str, Dict] = {
+    "essentials": {
+        "name": "Essentials Box",
+        "price": 599,
+        "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=800&q=80",
+        "tag": "Save ₹120/box",
+        "items": [
+            "1kg Roma Tomatoes",
+            "500g Yellow Onions",
+            "1kg Baby Potatoes",
+            "500g Rainbow Carrots",
+            "1 Purple Cabbage",
+            "250g Baby Spinach",
+        ],
+    },
+    "mixed": {
+        "name": "Mixed Veg + Fruits",
+        "price": 999,
+        "image": "https://images.unsplash.com/photo-1490474504059-bf2db5ab2348?w=800&q=80",
+        "tag": "Most popular · Save ₹200/box",
+        "items": [
+            "500g Fuji Apples",
+            "500g Alphonso Mango",
+            "1 Pineapple",
+            "1kg Tomatoes",
+            "500g Bell Peppers",
+            "1 Cauliflower",
+            "500g Carrots",
+        ],
+    },
+    "premium": {
+        "name": "Premium Chef Box",
+        "price": 1499,
+        "image": "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
+        "tag": "Chef's pick · Save ₹350/box",
+        "items": [
+            "Pre-cut Onions (500g diced)",
+            "Pre-cut Potatoes (500g cubed)",
+            "Pre-cut Carrots (250g julienne)",
+            "Pre-cut Bell Peppers (250g julienne)",
+            "Stir-fry Mix (300g)",
+            "Salad Bowl Mix (250g)",
+            "Diced Mango (250g)",
+            "Watermelon Cubes (500g)",
+        ],
+    },
+}
 
 
 # ============== AUTH HELPERS ==============
@@ -386,6 +467,64 @@ async def payment_cancel(order_id: str):
     return {"ok": False, "order_id": order_id, "message": "Payment cancelled."}
 
 
+# --- Subscriptions ---
+@api.get("/subscriptions/boxes")
+async def list_boxes():
+    return [{"id": k, **v} for k, v in BOXES.items()]
+
+
+@api.post("/subscriptions", response_model=Subscription)
+async def create_subscription(body: SubscriptionIn, user=Depends(get_current_user)):
+    pc = await db.pincodes.find_one({"pincode": body.pincode})
+    if not pc:
+        raise HTTPException(400, "Pincode not serviceable")
+    box = BOXES.get(body.box_type)
+    if not box:
+        raise HTTPException(400, "Invalid box type")
+    days_ahead = 7 if body.frequency == "weekly" else 14
+    sub = Subscription(
+        user_email=user["email"],
+        price_per_box=float(box["price"]),
+        box_name=box["name"],
+        box_items=box["items"],
+        next_delivery=datetime.now(timezone.utc) + timedelta(days=min(days_ahead, 3)),
+        **body.dict(),
+    )
+    doc = sub.dict()
+    doc["created_at"] = doc["created_at"].isoformat()
+    doc["next_delivery"] = doc["next_delivery"].isoformat()
+    await db.subscriptions.insert_one(doc)
+    return sub
+
+
+@api.get("/subscriptions", response_model=List[Subscription])
+async def my_subscriptions(user=Depends(get_current_user)):
+    docs = await db.subscriptions.find({"user_email": user["email"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    return [Subscription(**d) for d in docs]
+
+
+@api.post("/subscriptions/{sub_id}/pause")
+async def pause_subscription(sub_id: str, user=Depends(get_current_user)):
+    result = await db.subscriptions.update_one(
+        {"id": sub_id, "user_email": user["email"]},
+        {"$set": {"status": "paused"}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Subscription not found")
+    return {"ok": True}
+
+
+@api.delete("/subscriptions/{sub_id}")
+async def cancel_subscription(sub_id: str, user=Depends(get_current_user)):
+    result = await db.subscriptions.update_one(
+        {"id": sub_id, "user_email": user["email"]},
+        {"$set": {"status": "cancelled"}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Subscription not found")
+    return {"ok": True}
+
+
 app.include_router(api)
 
 
@@ -413,29 +552,72 @@ SEED_PRODUCTS = [
     {"name": "Strawberries", "description": "Handpicked from Mahabaleshwar hills.", "category": "whole", "cut_type": "whole", "price": 149, "unit": "250g", "image": "https://images.unsplash.com/photo-1543528176-61b239494933?w=600&q=80", "tags": ["seasonal"], "available_cuts": ["whole"], "available_weights": ["250g", "500g"]},
 
     # ---- Pre-cut vegetables (one product per vegetable, multiple cut choices) ----
-    {"name": "Onions", "description": "Choose your cut — sliced for salads, diced for tempering, or grated for masala.", "category": "cut-veg", "cut_type": "diced", "price": 59, "unit": "250g", "image": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80", "tags": ["prep-ready"], "available_cuts": ["sliced", "diced", "shredded", "grated"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Potatoes", "description": "Peeled and cut as you like — cubed for curries, batonnet for fries.", "category": "cut-veg", "cut_type": "cubed", "price": 55, "unit": "500g", "image": "https://images.unsplash.com/photo-1567374783966-4a4a2b0d2b91?w=600&q=80", "tags": ["ready-to-cook"], "available_cuts": ["cubed", "sliced", "batonnet", "diced"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Carrots", "description": "Peeled & cut to your preference.", "category": "cut-veg", "cut_type": "batonnet", "price": 69, "unit": "250g", "image": "https://images.unsplash.com/photo-1582515073490-39981397c445?w=600&q=80", "tags": ["chef-cut"], "available_cuts": ["batonnet", "diced", "julienne", "grated"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Cabbage", "description": "Freshly shredded or diced — for tacos, salads and stir-fry.", "category": "cut-veg", "cut_type": "shredded", "price": 49, "unit": "250g", "image": "https://images.unsplash.com/photo-1571168290120-ee27fbdb3fe0?w=600&q=80", "tags": [], "available_cuts": ["shredded", "sliced", "diced"], "available_weights": STANDARD_WEIGHTS},
-    {"name": "Bell Peppers", "description": "Multi-color capsicum — julienne, diced or sliced.", "category": "cut-veg", "cut_type": "julienne", "price": 79, "unit": "250g", "image": "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80", "tags": ["colorful"], "available_cuts": ["julienne", "diced", "sliced"], "available_weights": ["250g", "500g"]},
+    {"name": "Onions", "description": "Choose your cut — sliced for salads, diced for tempering, or grated for masala.", "category": "cut-veg", "cut_type": "diced", "price": 59, "unit": "250g", "image": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80", "tags": ["prep-ready"], "available_cuts": ["sliced", "diced", "shredded", "grated"], "available_weights": STANDARD_WEIGHTS, "cut_images": {
+        "sliced": "https://images.unsplash.com/photo-1580201092675-a0a6a6cafbb1?w=600&q=80",
+        "diced": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
+        "shredded": "https://images.unsplash.com/photo-1615486511484-92e172cc4fe0?w=600&q=80",
+        "grated": "https://images.unsplash.com/photo-1601001435957-74f0958a93c5?w=600&q=80",
+    }},
+    {"name": "Potatoes", "description": "Peeled and cut as you like — cubed for curries, batonnet for fries.", "category": "cut-veg", "cut_type": "cubed", "price": 55, "unit": "500g", "image": "https://images.unsplash.com/photo-1567374783966-4a4a2b0d2b91?w=600&q=80", "tags": ["ready-to-cook"], "available_cuts": ["cubed", "sliced", "batonnet", "diced"], "available_weights": STANDARD_WEIGHTS, "cut_images": {
+        "cubed": "https://images.unsplash.com/photo-1567374783966-4a4a2b0d2b91?w=600&q=80",
+        "sliced": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
+        "batonnet": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&q=80",
+        "diced": "https://images.unsplash.com/photo-1600891964092-4316c288032e?w=600&q=80",
+    }},
+    {"name": "Carrots", "description": "Peeled & cut to your preference.", "category": "cut-veg", "cut_type": "batonnet", "price": 69, "unit": "250g", "image": "https://images.unsplash.com/photo-1582515073490-39981397c445?w=600&q=80", "tags": ["chef-cut"], "available_cuts": ["batonnet", "diced", "julienne", "grated"], "available_weights": STANDARD_WEIGHTS, "cut_images": {
+        "batonnet": "https://images.unsplash.com/photo-1582515073490-39981397c445?w=600&q=80",
+        "diced": "https://images.unsplash.com/photo-1447175008436-054170c2e979?w=600&q=80",
+        "julienne": "https://images.unsplash.com/photo-1590165482129-1b8b27698780?w=600&q=80",
+        "grated": "https://images.unsplash.com/photo-1518977956812-cd3dbadaaf31?w=600&q=80",
+    }},
+    {"name": "Cabbage", "description": "Freshly shredded or diced — for tacos, salads and stir-fry.", "category": "cut-veg", "cut_type": "shredded", "price": 49, "unit": "250g", "image": "https://images.unsplash.com/photo-1571168290120-ee27fbdb3fe0?w=600&q=80", "tags": [], "available_cuts": ["shredded", "sliced", "diced"], "available_weights": STANDARD_WEIGHTS, "cut_images": {
+        "shredded": "https://images.unsplash.com/photo-1571168290120-ee27fbdb3fe0?w=600&q=80",
+        "sliced": "https://images.unsplash.com/photo-1594282486552-05b4d80fbb9f?w=600&q=80",
+        "diced": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
+    }},
+    {"name": "Bell Peppers", "description": "Multi-color capsicum — julienne, diced or sliced.", "category": "cut-veg", "cut_type": "julienne", "price": 79, "unit": "250g", "image": "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80", "tags": ["colorful"], "available_cuts": ["julienne", "diced", "sliced"], "available_weights": ["250g", "500g"], "cut_images": {
+        "julienne": "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80",
+        "diced": "https://images.unsplash.com/photo-1525607551316-4a8e16d1f9ba?w=600&q=80",
+        "sliced": "https://images.unsplash.com/photo-1563565375-f3fdfdbefa83?w=600&q=80",
+    }},
     {"name": "Beetroot", "description": "Grated or cubed — vibrant, antioxidant-rich.", "category": "cut-veg", "cut_type": "grated", "price": 65, "unit": "250g", "image": "https://images.unsplash.com/photo-1593105544559-ecb03bf76f82?w=600&q=80", "tags": ["antioxidant"], "available_cuts": ["grated", "cubed", "sliced"], "available_weights": ["250g", "500g"]},
     {"name": "Cauliflower Florets", "description": "Pre-cut florets, ready to cook.", "category": "cut-veg", "cut_type": "diced", "price": 59, "unit": "250g", "image": "https://images.unsplash.com/photo-1568584711271-6c929fb49b60?w=600&q=80", "tags": ["ready-to-cook"], "available_cuts": ["diced"], "available_weights": ["250g", "500g"]},
     {"name": "Green Beans", "description": "French-cut or chopped — sauté-ready.", "category": "cut-veg", "cut_type": "sliced", "price": 79, "unit": "250g", "image": "https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?w=600&q=80", "tags": [], "available_cuts": ["sliced", "julienne"], "available_weights": ["250g", "500g"]},
 
     # ---- Pre-cut fruits ----
-    {"name": "Mango", "description": "Sweet mango — diced cubes or sliced strips, chilled & ready.", "category": "cut-fruit", "cut_type": "diced", "price": 199, "unit": "250g", "image": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80", "tags": ["ready-to-eat"], "available_cuts": ["diced", "sliced", "cubed"], "available_weights": ["250g", "500g"]},
-    {"name": "Pineapple", "description": "Golden rings, cored & ready.", "category": "cut-fruit", "cut_type": "sliced", "price": 129, "unit": "500g", "image": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=600&q=80", "tags": ["ready-to-eat"], "available_cuts": ["sliced", "cubed", "diced"], "available_weights": ["250g", "500g"]},
+    {"name": "Mango", "description": "Sweet mango — diced cubes or sliced strips, chilled & ready.", "category": "cut-fruit", "cut_type": "diced", "price": 199, "unit": "250g", "image": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80", "tags": ["ready-to-eat"], "available_cuts": ["diced", "sliced", "cubed"], "available_weights": ["250g", "500g"], "cut_images": {
+        "diced": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80",
+        "sliced": "https://images.unsplash.com/photo-1553279768-865429fa0078?w=600&q=80",
+        "cubed": "https://images.unsplash.com/photo-1591073113125-e46713c829ed?w=600&q=80",
+    }},
+    {"name": "Pineapple", "description": "Golden rings, cored & ready.", "category": "cut-fruit", "cut_type": "sliced", "price": 129, "unit": "500g", "image": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=600&q=80", "tags": ["ready-to-eat"], "available_cuts": ["sliced", "cubed", "diced"], "available_weights": ["250g", "500g"], "cut_images": {
+        "sliced": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=600&q=80",
+        "cubed": "https://images.unsplash.com/photo-1490474504059-bf2db5ab2348?w=600&q=80",
+        "diced": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80",
+    }},
     {"name": "Watermelon", "description": "Seedless watermelon, hydrating cubes.", "category": "cut-fruit", "cut_type": "cubed", "price": 99, "unit": "500g", "image": "https://images.unsplash.com/photo-1595475207225-428b62bda831?w=600&q=80", "tags": ["hydrating"], "available_cuts": ["cubed", "sliced"], "available_weights": ["500g", "1kg"]},
     {"name": "Papaya", "description": "Ripe papaya, digestive friendly cuts.", "category": "cut-fruit", "cut_type": "cubed", "price": 89, "unit": "500g", "image": "https://images.unsplash.com/photo-1517282009859-f000ec3b26fe?w=600&q=80", "tags": [], "available_cuts": ["cubed", "sliced", "diced"], "available_weights": ["250g", "500g"]},
     {"name": "Mixed Fruit Bowl", "description": "Watermelon, papaya, kiwi & mango — cubed.", "category": "cut-fruit", "cut_type": "cubed", "price": 179, "unit": "500g", "image": "https://images.unsplash.com/photo-1490474504059-bf2db5ab2348?w=600&q=80", "tags": ["mixed", "healthy"], "available_cuts": ["cubed"], "available_weights": ["250g", "500g"]},
 
     # ---- Ready-to-cook mixes ----
-    {"name": "Stir-fry Mix", "description": "Bell peppers, baby corn, broccoli & carrots — wok-ready.", "category": "ready-mix", "cut_type": "mix", "price": 149, "unit": "300g", "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80", "tags": ["quick-meal", "wok"], "available_cuts": ["mix"], "available_weights": ["300g", "500g"]},
-    {"name": "Biryani Veggie Mix", "description": "Beans, carrots, cauliflower & peas — biryani-ready.", "category": "ready-mix", "cut_type": "mix", "price": 129, "unit": "300g", "image": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=80", "tags": ["indian", "quick-meal"], "available_cuts": ["mix"], "available_weights": ["300g", "500g"]},
-    {"name": "Soup Base Mix", "description": "Celery, leeks, carrots, garlic & herbs.", "category": "ready-mix", "cut_type": "mix", "price": 109, "unit": "250g", "image": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80", "tags": ["comfort"], "available_cuts": ["mix"], "available_weights": ["250g", "500g"]},
-    {"name": "Curry Cut Mix", "description": "Onion, tomato, ginger-garlic — cut for curry.", "category": "ready-mix", "cut_type": "mix", "price": 89, "unit": "300g", "image": "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600&q=80", "tags": ["indian", "quick-meal"], "available_cuts": ["mix"], "available_weights": ["300g", "500g"]},
-    {"name": "Salad Bowl Mix", "description": "Lettuce, cherry tomatoes, cucumber, olives.", "category": "ready-mix", "cut_type": "mix", "price": 159, "unit": "250g", "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80", "tags": ["healthy", "no-cook"], "available_cuts": ["mix"], "available_weights": ["250g", "500g"]},
-    {"name": "Pav Bhaji Mix", "description": "Potato, cauliflower, peas, capsicum — bhaji-ready.", "category": "ready-mix", "cut_type": "mix", "price": 119, "unit": "500g", "image": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&q=80", "tags": ["indian", "street-food"], "available_cuts": ["mix"], "available_weights": ["500g", "1kg"]},
+    {"name": "Stir-fry Mix", "description": "Bell peppers, baby corn, broccoli & carrots — wok-ready.", "category": "ready-mix", "cut_type": "mix", "price": 149, "unit": "300g", "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80", "tags": ["quick-meal", "wok"], "available_cuts": ["mix"], "available_weights": ["300g", "500g"], "recipes": [
+        {"title": "Quick Asian Stir-fry", "time_mins": 12, "servings": 2, "image": "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80", "ingredients": ["1 pack Stir-fry Mix", "2 tbsp soy sauce", "1 tbsp sesame oil", "1 tsp minced garlic", "Salt & chilli flakes"], "steps": ["Heat sesame oil in a wok on high flame.", "Add minced garlic, sauté for 20 seconds.", "Toss in the stir-fry mix, cook 4-5 minutes.", "Add soy sauce, salt, and chilli flakes.", "Serve hot with rice or noodles."]},
+    ]},
+    {"name": "Biryani Veggie Mix", "description": "Beans, carrots, cauliflower & peas — biryani-ready.", "category": "ready-mix", "cut_type": "mix", "price": 129, "unit": "300g", "image": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=80", "tags": ["indian", "quick-meal"], "available_cuts": ["mix"], "available_weights": ["300g", "500g"], "recipes": [
+        {"title": "One-pot Veg Biryani", "time_mins": 30, "servings": 3, "image": "https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600&q=80", "ingredients": ["1 pack Biryani Veggie Mix", "1 cup basmati rice", "2 cups water", "1 sliced onion", "Biryani masala", "Ghee, salt, mint leaves"], "steps": ["Wash rice, soak for 20 minutes.", "Heat ghee, fry onions till golden.", "Add veggie mix and biryani masala, sauté 3 min.", "Layer with rice and hot water. Salt to taste.", "Cover, cook on low for 15 minutes. Garnish with mint."]},
+    ]},
+    {"name": "Soup Base Mix", "description": "Celery, leeks, carrots, garlic & herbs.", "category": "ready-mix", "cut_type": "mix", "price": 109, "unit": "250g", "image": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80", "tags": ["comfort"], "available_cuts": ["mix"], "available_weights": ["250g", "500g"], "recipes": [
+        {"title": "Country Vegetable Soup", "time_mins": 25, "servings": 4, "image": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80", "ingredients": ["1 pack Soup Base Mix", "4 cups water/stock", "2 tbsp butter", "1 bay leaf", "Cracked pepper, salt"], "steps": ["Melt butter, sauté soup mix for 4 minutes.", "Add stock, bay leaf, and bring to a boil.", "Simmer for 15 minutes until veggies are tender.", "Season with salt and cracked pepper.", "Serve hot with crusty bread."]},
+    ]},
+    {"name": "Curry Cut Mix", "description": "Onion, tomato, ginger-garlic — cut for curry.", "category": "ready-mix", "cut_type": "mix", "price": 89, "unit": "300g", "image": "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600&q=80", "tags": ["indian", "quick-meal"], "available_cuts": ["mix"], "available_weights": ["300g", "500g"], "recipes": [
+        {"title": "5-min Curry Base", "time_mins": 10, "servings": 3, "image": "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600&q=80", "ingredients": ["1 pack Curry Cut Mix", "2 tbsp oil", "1 tsp cumin", "1 tsp turmeric", "1 tsp red chilli powder", "Salt to taste"], "steps": ["Heat oil, splutter cumin.", "Add curry cut mix, sauté 5 min.", "Add turmeric, chilli, salt. Cook 3 min.", "Add 1 cup water for gravy base.", "Ready to add your protein or veggies!"]},
+    ]},
+    {"name": "Salad Bowl Mix", "description": "Lettuce, cherry tomatoes, cucumber, olives.", "category": "ready-mix", "cut_type": "mix", "price": 159, "unit": "250g", "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80", "tags": ["healthy", "no-cook"], "available_cuts": ["mix"], "available_weights": ["250g", "500g"], "recipes": [
+        {"title": "Mediterranean Bowl", "time_mins": 5, "servings": 2, "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80", "ingredients": ["1 pack Salad Bowl Mix", "2 tbsp olive oil", "1 tbsp lemon juice", "50g feta cheese", "Oregano, salt, pepper"], "steps": ["Empty salad mix into a large bowl.", "Whisk olive oil, lemon juice, salt & oregano.", "Toss dressing over salad.", "Crumble feta on top.", "Serve chilled."]},
+    ]},
+    {"name": "Pav Bhaji Mix", "description": "Potato, cauliflower, peas, capsicum — bhaji-ready.", "category": "ready-mix", "cut_type": "mix", "price": 119, "unit": "500g", "image": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&q=80", "tags": ["indian", "street-food"], "available_cuts": ["mix"], "available_weights": ["500g", "1kg"], "recipes": [
+        {"title": "Mumbai Pav Bhaji", "time_mins": 25, "servings": 4, "image": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&q=80", "ingredients": ["1 pack Pav Bhaji Mix", "3 tbsp butter", "2 tbsp pav bhaji masala", "1 lemon", "Coriander leaves", "Pav buns"], "steps": ["Boil the veggie mix till soft, mash coarsely.", "Heat butter, add masala, sauté 1 minute.", "Add mashed veggies, cook 8-10 minutes.", "Squeeze lemon, top with coriander.", "Toast pav in butter, serve hot."]},
+    ]},
 ]
 
 SEED_PINCODES = [

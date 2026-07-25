@@ -13,12 +13,15 @@ export default function Profile() {
 
   const rows = user
     ? [
+        { icon: "gift-outline" as const, label: "Subscribe & Save", tid: "profile-subscribe", onPress: () => router.push("/subscribe"), accent: true },
         { icon: "receipt-outline" as const, label: "My Orders", tid: "profile-orders", onPress: () => router.push("/orders") },
         { icon: "location-outline" as const, label: "Serviceable Pincodes", tid: "profile-pincodes", onPress: () => router.push({ pathname: "/(tabs)/cart" }) },
         ...(user.role === "admin" ? [{ icon: "shield-checkmark-outline" as const, label: "Admin Panel", tid: "profile-admin", onPress: () => router.push("/admin") }] : []),
         { icon: "log-out-outline" as const, label: "Sign out", tid: "profile-signout", onPress: async () => { await logout(); router.replace("/(tabs)"); }, danger: true },
       ]
-    : [];
+    : [
+        { icon: "gift-outline" as const, label: "Subscribe & Save", tid: "profile-subscribe", onPress: () => router.push("/subscribe"), accent: true },
+      ];
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
@@ -58,10 +61,11 @@ export default function Profile() {
               key={r.label}
               testID={r.tid}
               onPress={r.onPress}
-              style={styles.row}
+              style={[styles.row, r.accent && styles.rowAccent]}
             >
-              <Ionicons name={r.icon} size={20} color={r.danger ? theme.colors.error : theme.colors.onSurface} />
-              <Text style={[styles.rowTxt, r.danger && { color: theme.colors.error }]}>{r.label}</Text>
+              <Ionicons name={r.icon} size={20} color={r.danger ? theme.colors.error : r.accent ? theme.colors.accent : theme.colors.onSurface} />
+              <Text style={[styles.rowTxt, r.danger && { color: theme.colors.error }, r.accent && { color: theme.colors.accent, fontWeight: "700" }]}>{r.label}</Text>
+              {r.accent && <View style={styles.newPill}><Text style={styles.newPillTxt}>NEW</Text></View>}
               <Ionicons name="chevron-forward" size={18} color={theme.colors.onSurfaceMuted} />
             </Pressable>
           ))}
@@ -93,6 +97,9 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 22, fontWeight: "700", color: theme.colors.brand },
   statLbl: { fontSize: 11, color: theme.colors.onSurfaceMuted, marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, backgroundColor: theme.colors.surface2, borderRadius: theme.radius.md, marginBottom: 8, ...theme.shadow.sm },
+  rowAccent: { backgroundColor: "rgba(217,93,57,0.08)", borderWidth: 1, borderColor: theme.colors.accent },
   rowTxt: { flex: 1, fontSize: 15, color: theme.colors.onSurface, fontWeight: "500" },
+  newPill: { backgroundColor: theme.colors.accent, paddingHorizontal: 8, paddingVertical: 2, borderRadius: theme.radius.sm },
+  newPillTxt: { color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
   footer: { textAlign: "center", color: theme.colors.onSurfaceMuted, fontSize: 12, marginTop: theme.spacing.xxl },
 });

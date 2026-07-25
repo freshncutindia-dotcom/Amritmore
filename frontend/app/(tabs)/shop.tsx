@@ -11,6 +11,7 @@ import { theme, CATEGORIES, CUT_TYPES } from "@/src/theme";
 import { apiFetch } from "@/src/api";
 import { useApp } from "@/src/store";
 import { FloatingCartFab } from "./index";
+import { useDrawer } from "@/src/components/SideDrawer";
 
 type Product = {
   id: string; name: string; price: number; unit: string; image: string;
@@ -22,6 +23,7 @@ export default function Shop() {
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string }>();
   const { addToCart, cartCount } = useApp();
+  const drawer = useDrawer();
 
   const [category, setCategory] = useState<string>(params.category || "all");
   const [cutType, setCutType] = useState<string>("all");
@@ -51,7 +53,12 @@ export default function Shop() {
     <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
       {/* Sticky header */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles.title}>Shop</Text>
+        <View style={styles.titleRow}>
+          <Pressable testID="shop-menu-btn" onPress={drawer.open} style={styles.menuBtn}>
+            <Ionicons name="menu" size={22} color={theme.colors.onSurface} />
+          </Pressable>
+          <Text style={styles.title}>Shop</Text>
+        </View>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={18} color={theme.colors.onSurfaceMuted} />
           <TextInput
@@ -176,7 +183,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
   },
-  title: { fontSize: 28, fontWeight: "700", color: theme.colors.onSurface, marginBottom: 12 },
+  title: { fontSize: 28, fontWeight: "700", color: theme.colors.onSurface },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
+  menuBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.surface2, alignItems: "center", justifyContent: "center", ...theme.shadow.sm },
   searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: theme.colors.surface3, borderRadius: theme.radius.pill, paddingHorizontal: 14, height: 44, gap: 8 },
   searchInput: { flex: 1, color: theme.colors.onSurface, fontSize: 14 },
   chipRow: { flexDirection: "row", gap: 8, paddingVertical: 8, paddingRight: 16 },

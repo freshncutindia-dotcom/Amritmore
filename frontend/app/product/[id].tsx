@@ -12,6 +12,15 @@ import { theme } from "@/src/theme";
 import { apiFetch } from "@/src/api";
 import { useApp } from "@/src/store";
 
+type Recipe = {
+  title: string;
+  time_mins: number;
+  servings: number;
+  image: string;
+  ingredients: string[];
+  steps: string[];
+};
+
 type Product = {
   id: string;
   name: string;
@@ -25,6 +34,8 @@ type Product = {
   tags: string[];
   available_cuts: string[];
   available_weights: string[];
+  cut_images: Record<string, string>;
+  recipes: Recipe[];
 };
 
 function weightToMultiplier(unit: string, base: string): number {
@@ -41,6 +52,50 @@ function weightToMultiplier(unit: string, base: string): number {
 
 function cutLabel(c: string): string {
   return c.charAt(0).toUpperCase() + c.slice(1);
+}
+
+function RecipeCard({ recipe }: { recipe: Recipe }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <Animated.View entering={FadeInUp} style={styles.recipeCard}>
+      <Pressable testID={`recipe-${recipe.title}`} onPress={() => setExpanded((e) => !e)}>
+        <Image source={{ uri: recipe.image }} style={styles.recipeImg} contentFit="cover" />
+        <View style={{ padding: theme.spacing.md }}>
+          <Text style={styles.recipeTitle}>{recipe.title}</Text>
+          <View style={styles.recipeMeta}>
+            <View style={styles.metaPill}>
+              <Ionicons name="time-outline" size={12} color={theme.colors.onSurfaceMuted} />
+              <Text style={styles.metaTxt}>{recipe.time_mins} min</Text>
+            </View>
+            <View style={styles.metaPill}>
+              <Ionicons name="people-outline" size={12} color={theme.colors.onSurfaceMuted} />
+              <Text style={styles.metaTxt}>Serves {recipe.servings}</Text>
+            </View>
+            <View style={{ flex: 1 }} />
+            <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={18} color={theme.colors.brand} />
+          </View>
+          {expanded && (
+            <Animated.View entering={FadeInUp}>
+              <Text style={styles.recipeSection}>You'll need</Text>
+              {recipe.ingredients.map((i, k) => (
+                <View key={k} style={styles.stepRow}>
+                  <View style={styles.dot} />
+                  <Text style={styles.stepTxt}>{i}</Text>
+                </View>
+              ))}
+              <Text style={styles.recipeSection}>Steps</Text>
+              {recipe.steps.map((s, k) => (
+                <View key={k} style={styles.stepRow}>
+                  <View style={styles.stepNum}><Text style={styles.stepNumTxt}>{k + 1}</Text></View>
+                  <Text style={styles.stepTxt}>{s}</Text>
+                </View>
+              ))}
+            </Animated.View>
+          )}
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
 }
 
 export default function ProductDetail() {
@@ -87,6 +142,8 @@ export default function ProductDetail() {
   );
   if (!product) return null;
 
+  const heroImage = (product.cut_images && product.cut_images[cutType]) || product.image;
+
   const mult = weightToMultiplier(unit, product.unit);
   const displayPrice = Math.round(product.price * mult);
   const total = displayPrice * qty;
@@ -110,7 +167,7 @@ export default function ProductDetail() {
     <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 200 }} showsVerticalScrollIndicator={false}>
         <View style={styles.imgWrap}>
-          <Image source={{ uri: product.image }} style={styles.img} contentFit="cover" />
+          <Image source={{ uri: heroImage }} style={styles.img} contentFit="cover" transition={250} />
           <LinearGradient colors={["rgba(0,0,0,0.35)", "transparent"]} style={styles.imgScrim} />
           <Pressable testID="back-btn" onPress={() => router.back()} style={[styles.backBtn, { top: insets.top + 12 }]}>
             <Ionicons name="chevron-back" size={22} color={theme.colors.onSurface} />
@@ -188,6 +245,21 @@ export default function ProductDetail() {
               <Ionicons name="add" size={20} color={theme.colors.onSurface} />
             </Pressable>
           </View>
+
+          {/* Recipe suggestions (ready-mix only) */}
+          {product.recipes && product.recipes.length > 0 && (
+            <>
+              <View style={{ marginTop: 28 }}>
+                <View style={styles.recipeHeader}>
+                  <Ionicons name="restaurant" size={18} color={theme.colors.accent} />
+                  <Text style={styles.recipeH1}>Try this with</Text>
+                </View>
+              </View>
+              {product.recipes.map((r, idx) => (
+                <RecipeCard key={idx} recipe={r} />
+              ))}
+            </>
+          )}
         </Animated.View>
       </ScrollView>
 
@@ -247,4 +319,20 @@ const styles = StyleSheet.create({
   stickyPrice: { fontSize: 22, fontWeight: "700", color: theme.colors.onSurface },
   addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.brand, height: 52, borderRadius: theme.radius.pill, gap: 8 },
   addTxt: { color: theme.colors.onBrand, fontWeight: "700", fontSize: 15 },
+
+  // Recipes
+  recipeHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  recipeH1: { fontSize: 16, fontWeight: "700", color: theme.colors.onSurface },
+  recipeCard: { backgroundColor: theme.colors.surface2, borderRadius: theme.radius.lg, overflow: "hidden", marginBottom: 12, ...theme.shadow.sm },
+  recipeImg: { width: "100%", height: 160 },
+  recipeTitle: { fontSize: 16, fontWeight: "700", color: theme.colors.onSurface },
+  recipeMeta: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
+  metaPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.colors.surface3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: theme.radius.pill },
+  metaTxt: { fontSize: 11, color: theme.colors.onSurfaceMuted },
+  recipeSection: { fontSize: 12, fontWeight: "700", color: theme.colors.brand, marginTop: 14, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 },
+  stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 8 },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: theme.colors.brand, marginTop: 7 },
+  stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: theme.colors.brand, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  stepNumTxt: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  stepTxt: { flex: 1, fontSize: 13, color: theme.colors.onSurface, lineHeight: 20 },
 });

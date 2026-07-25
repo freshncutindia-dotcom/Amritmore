@@ -1,0 +1,53 @@
+{
+  "summary": "Backend-only tests for FreshCuts SEED_VERSION=5 additions: (a) Subscription system (public /boxes + auth POST/GET/pause/DELETE), (b) Product.cut_images dict on Onions/Potatoes/etc., (c) Product.recipes on ready-mix items. Extended /app/backend/tests/test_freshcuts_api.py with 11 new tests across two new classes (TestProductEnrichment, TestSubscriptions) while preserving all 30 prior tests. Result: 41/41 PASS (100%). All 10 scenarios from the review request are verified: /subscriptions/boxes returns essentials+mixed+premium with items[] and prices; POST /subscriptions with valid pincode creates active sub (box_name='Mixed Veg + Fruits', price_per_box=999, 7 box_items, next_delivery set); invalid pincode -> 400; missing auth -> 401; GET returns user's subs; pause -> status='paused'; DELETE -> status='cancelled'; Onions.cut_images has sliced/diced/shredded/grated URLs; Stir-fry Mix & Biryani Veggie Mix each expose one recipe with title/time_mins/servings/image/ingredients/steps; and all pre-existing endpoints (auth, products, pincodes, orders, Stripe payments, admin RBAC/CRUD) still pass unchanged.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/subscriptions",
+        "issue": "next_delivery is computed as datetime.now() + min(days_ahead, 3) — the min() with 3 caps weekly (7d) and biweekly (14d) both to 3 days. This is likely a bug: biweekly subscribers will see the same next-delivery window as weekly. Suggest replacing min(days_ahead, 3) with just days_ahead (or make the first-delivery lead time a separate constant, e.g. first delivery = min(3, days_ahead), then subsequent = days_ahead)."
+      },
+      {
+        "endpoint": "POST /api/payments/checkout",
+        "issue": "(carried from prior iteration) Stripe still rejects amounts below its $0.50 minimum; total < ~₹48 -> 500. Consider server-side min-total enforcement for payment_method=stripe."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_freshcuts_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional, likely bug) Fix next_delivery computation in POST /api/subscriptions: `min(days_ahead, 3)` collapses biweekly (14d) to 3d. Either drop min() or split into initial_lead_days vs cycle_days.",
+    "(Optional) BOXES is defined as a module-level dict — consider persisting boxes in Mongo (db.subscription_boxes) so admins can edit prices/items without a code deploy.",
+    "(Optional) Subscription lifecycle: no way to resume a paused subscription; consider adding POST /subscriptions/{id}/resume that sets status back to 'active'.",
+    "(Optional/security) Same as prior iteration — order & (now) subscription creation trust client-supplied address/phone with no server-side sanity checks; and product prices in orders are still client-supplied.",
+    "(Nice-to-have) Add DELETE /subscriptions/{id} hard-delete option or a paid_boxes counter — right now the DELETE endpoint soft-cancels which is fine but the HTTP verb is a bit misleading (behavior != REST-standard delete)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:490 — `next_delivery = datetime.now(...) + timedelta(days=min(days_ahead, 3))` — min() defeats the biweekly branch (see minor issue).",
+    "server.py subscriptions POST returns the sub with next_delivery as an aware datetime while stored as isoformat string — round-trip via Subscription(**doc) works today but is fragile.",
+    "server.py has grown from ~490 to ~530 lines with subscriptions — still below the 700 threshold; when it grows further, split routes/models by domain (auth, products, subscriptions, orders, payments).",
+    "BOXES pricing/items are hardcoded in server.py; no admin endpoint to edit — flagged for future admin surface.",
+    "Subscription and Order both accept client-supplied phone/address with no format validation (E.164, min length)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_freshcuts_api.py (added TestProductEnrichment [3 tests: onions cut_images, ready-mix recipes, whole-product defaults] and TestSubscriptions [8 tests: boxes, auth-required, bad pincode, create success, list, pause, cancel, pause-404]; refactored final pincode test into TestAdminCRUDContinued so class boundaries stay clean)"
+  ],
+  "success_rate": {
+    "backend": "100% (41/41)",
+    "frontend": "not tested (backend-only per request)"
+  },
+  "seed_data_creation": "None manually created. Startup reseeder produced 33 products at SEED_VERSION=5 with cut_images populated on Onions/Potatoes/Carrots/Cabbage/Bell Peppers/Mango/Pineapple and recipes on all 6 ready-mix items. Admin + 8 pincodes seeded on first boot. Subscription created during tests is cancelled by the same test class (no lingering active subs).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Base URL from frontend/.env EXPO_PUBLIC_BACKEND_URL. Admin: admin@freshcuts.com / Admin@123. Serviceable pincode for subs: 560001. Subscriptions collection: db.subscriptions with fields {id,user_email,box_type,box_name,price_per_box,box_items,frequency,delivery_day,pincode,address,phone,status,created_at,next_delivery}. Products now carry cut_images:Dict[str,str] and recipes:List[Recipe]; both default to empty and are non-breaking. SEED_VERSION=5 forces reseed on deploy. Stripe still lives on emergentintegrations with sk_test_emergent (keep test totals >=₹50).",
+  "rca_of_issue": "N/A — no failures this iteration. Only minor logic concern: next_delivery collapses biweekly to 3d due to min(days_ahead, 3); tests still pass because they only assert next_delivery is set (non-empty), not the exact offset."
+}

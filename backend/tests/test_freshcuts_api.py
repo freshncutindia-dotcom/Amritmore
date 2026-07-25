@@ -293,6 +293,122 @@ class TestAdminCRUD:
         assert rd.status_code == 200
         assert api_client.get(f"{API}/products/{pid}").status_code == 404
 
+# ============ PRODUCT ENRICHMENT (cut_images + recipes) ============
+class TestProductEnrichment:
+    def test_onions_has_cut_images_dict(self, api_client):
+        r = api_client.get(f"{API}/products", params={"category": "cut-veg"})
+        assert r.status_code == 200
+        onions = next((p for p in r.json() if p["name"] == "Onions"), None)
+        assert onions is not None, "Onions product not seeded"
+        assert "cut_images" in onions, "cut_images field missing"
+        assert isinstance(onions["cut_images"], dict)
+        for k in ["sliced", "diced", "shredded", "grated"]:
+            assert k in onions["cut_images"], f"Onions cut_images missing key: {k}"
+            assert onions["cut_images"][k].startswith("http"), f"Invalid image URL for {k}"
+
+    def test_ready_mix_products_have_recipes(self, api_client):
+        r = api_client.get(f"{API}/products", params={"category": "ready-mix"})
+        assert r.status_code == 200
+        items = r.json()
+        by_name = {p["name"]: p for p in items}
+        for name in ("Stir-fry Mix", "Biryani Veggie Mix"):
+            assert name in by_name, f"{name} missing"
+            recipes = by_name[name].get("recipes", [])
+            assert isinstance(recipes, list) and len(recipes) >= 1, \
+                f"{name} should have >=1 recipe, got {len(recipes)}"
+            rec = recipes[0]
+            for f in ("title", "time_mins", "servings", "image", "ingredients", "steps"):
+                assert f in rec, f"Recipe missing {f}"
+            assert isinstance(rec["ingredients"], list) and len(rec["ingredients"]) > 0
+            assert isinstance(rec["steps"], list) and len(rec["steps"]) > 0
+            assert isinstance(rec["time_mins"], int) and rec["time_mins"] > 0
+
+    def test_whole_product_recipes_default_empty(self, api_client):
+        r = api_client.get(f"{API}/products", params={"category": "whole"})
+        p = r.json()[0]
+        # recipes should be present as list (may be empty for whole)
+        assert "recipes" in p and isinstance(p["recipes"], list)
+        assert "cut_images" in p and isinstance(p["cut_images"], dict)
+
+
+# ============ SUBSCRIPTIONS ============
+class TestSubscriptions:
+    def test_list_boxes_public(self, api_client):
+        r = api_client.get(f"{API}/subscriptions/boxes")
+        assert r.status_code == 200
+        boxes = r.json()
+        assert isinstance(boxes, list)
+        ids = {b["id"] for b in boxes}
+        assert ids == {"essentials", "mixed", "premium"}, f"Unexpected boxes: {ids}"
+        for b in boxes:
+            assert "name" in b and "price" in b and "items" in b and "image" in b
+            assert isinstance(b["items"], list) and len(b["items"]) >= 3
+            assert isinstance(b["price"], (int, float)) and b["price"] > 0
+
+    def test_create_subscription_requires_auth(self, api_client):
+        r = api_client.post(f"{API}/subscriptions", json={
+            "box_type": "essentials", "frequency": "weekly",
+            "pincode": "560001", "address": "TEST addr", "phone": "9999999999"
+        })
+        assert r.status_code == 401
+
+    def test_create_subscription_bad_pincode(self, api_client, user_headers):
+        r = api_client.post(f"{API}/subscriptions", json={
+            "box_type": "mixed", "frequency": "weekly",
+            "pincode": "999999", "address": "TEST addr", "phone": "9999999999"
+        }, headers=user_headers)
+        assert r.status_code == 400
+
+    def test_create_subscription_success(self, api_client, user_headers, test_user):
+        r = api_client.post(f"{API}/subscriptions", json={
+            "box_type": "mixed", "frequency": "weekly",
+            "delivery_day": "Monday",
+            "pincode": "560001", "address": "TEST 123 Sub Street", "phone": "9999999999"
+        }, headers=user_headers)
+        assert r.status_code == 200, r.text
+        sub = r.json()
+        assert sub["user_email"] == test_user["email"]
+        assert sub["status"] == "active"
+        assert sub["box_type"] == "mixed"
+        assert sub["box_name"] == "Mixed Veg + Fruits"
+        assert sub["price_per_box"] == 999
+        assert isinstance(sub["box_items"], list) and len(sub["box_items"]) >= 5
+        assert sub.get("next_delivery"), "next_delivery must be set"
+        pytest._sub_id = sub["id"]
+
+    def test_list_my_subscriptions(self, api_client, user_headers):
+        r = api_client.get(f"{API}/subscriptions", headers=user_headers)
+        assert r.status_code == 200
+        subs = r.json()
+        assert isinstance(subs, list) and len(subs) >= 1
+        assert any(s["id"] == getattr(pytest, "_sub_id", None) for s in subs)
+
+    def test_pause_subscription(self, api_client, user_headers):
+        sub_id = getattr(pytest, "_sub_id", None)
+        assert sub_id, "no sub id from earlier test"
+        r = api_client.post(f"{API}/subscriptions/{sub_id}/pause", headers=user_headers)
+        assert r.status_code == 200
+        assert r.json().get("ok") is True
+        # Verify via list
+        subs = api_client.get(f"{API}/subscriptions", headers=user_headers).json()
+        this = next(s for s in subs if s["id"] == sub_id)
+        assert this["status"] == "paused"
+
+    def test_cancel_subscription(self, api_client, user_headers):
+        sub_id = getattr(pytest, "_sub_id", None)
+        assert sub_id
+        r = api_client.delete(f"{API}/subscriptions/{sub_id}", headers=user_headers)
+        assert r.status_code == 200
+        subs = api_client.get(f"{API}/subscriptions", headers=user_headers).json()
+        this = next(s for s in subs if s["id"] == sub_id)
+        assert this["status"] == "cancelled"
+
+    def test_pause_unknown_subscription_404(self, api_client, user_headers):
+        r = api_client.post(f"{API}/subscriptions/nonexistent-xyz/pause", headers=user_headers)
+        assert r.status_code == 404
+
+
+class TestAdminCRUDContinued:
     def test_admin_create_and_delete_pincode(self, api_client, admin_headers):
         pincode_val = f"9{uuid.uuid4().int % 100000:05d}"
         payload = {"pincode": pincode_val, "area": "TEST Area", "delivery_fee": 15, "eta_hours": 2}

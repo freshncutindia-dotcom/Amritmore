@@ -11,6 +11,7 @@ import * as Haptics from "expo-haptics";
 import { theme, CATEGORIES } from "@/src/theme";
 import { apiFetch } from "@/src/api";
 import { useApp } from "@/src/store";
+import { useDrawer } from "@/src/components/SideDrawer";
 
 type Product = {
   id: string; name: string; price: number; unit: string; image: string;
@@ -23,6 +24,7 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, cartCount, addToCart } = useApp();
+  const drawer = useDrawer();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,7 +68,14 @@ export default function Home() {
           />
           <View style={styles.heroContent}>
             <View style={styles.heroTopRow}>
-              <View>
+              <Pressable
+                testID="home-menu-btn"
+                onPress={drawer.open}
+                style={styles.heroIcon}
+              >
+                <Ionicons name="menu" size={20} color="#fff" />
+              </Pressable>
+              <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.heroHi}>Good morning{user?.name ? `, ${user.name.split(" ")[0]}` : ""}</Text>
                 <Text style={styles.heroLoc}><Ionicons name="location" size={12} color="#fff" /> Deliver to Bengaluru</Text>
               </View>
@@ -111,6 +120,22 @@ export default function Home() {
               </Pressable>
             ))}
           </View>
+        </Animated.View>
+
+        {/* Subscribe & Save promo */}
+        <Animated.View entering={FadeInDown.delay(80)} style={{ marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.lg }}>
+          <Pressable testID="home-subscribe-cta" onPress={() => router.push("/subscribe")} style={styles.subPromo}>
+            <LinearGradient colors={[theme.colors.brand, theme.colors.brandDark]} style={StyleSheet.absoluteFillObject} />
+            <View style={{ flex: 1, padding: 18 }}>
+              <View style={styles.subBadge}><Text style={styles.subBadgeTxt}>NEW · Subscribe & Save</Text></View>
+              <Text style={styles.subH1}>Weekly veggie box{"\n"}from ₹599</Text>
+              <View style={styles.subArrowRow}>
+                <Text style={styles.subCta}>Set up your box</Text>
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </View>
+            </View>
+            <Text style={styles.subEmoji}>🥬</Text>
+          </Pressable>
         </Animated.View>
 
         {/* Featured */}
@@ -272,4 +297,12 @@ const styles = StyleSheet.create({
   fabInner: { flexDirection: "row", alignItems: "center", backgroundColor: theme.colors.brand, paddingHorizontal: 18, paddingVertical: 14, borderRadius: theme.radius.pill },
   fabTxt: { color: theme.colors.onBrand, fontSize: 12, opacity: 0.85 },
   fabPrice: { color: theme.colors.onBrand, fontWeight: "700", fontSize: 15 },
+
+  subPromo: { height: 130, borderRadius: theme.radius.lg, overflow: "hidden", flexDirection: "row", alignItems: "center", ...theme.shadow.md },
+  subBadge: { alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.22)", paddingHorizontal: 10, paddingVertical: 3, borderRadius: theme.radius.pill, marginBottom: 8 },
+  subBadgeTxt: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  subH1: { color: "#fff", fontSize: 20, fontWeight: "700", lineHeight: 24 },
+  subArrowRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  subCta: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  subEmoji: { fontSize: 80, marginRight: -10, opacity: 0.4 },
 });

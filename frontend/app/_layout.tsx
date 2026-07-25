@@ -7,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AppProvider } from "@/src/store";
+import { DrawerProvider } from "@/src/components/SideDrawer";
 
 LogBox.ignoreAllLogs(true);
 
@@ -27,16 +28,19 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AppProvider>
-          <StatusBar barStyle="dark-content" backgroundColor="#FDFBF7" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FDFBF7" } }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="auth" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="product/[id]" options={{ presentation: "card", animation: "slide_from_right" }} />
-            <Stack.Screen name="checkout" options={{ animation: "slide_from_bottom" }} />
-            <Stack.Screen name="admin" options={{ animation: "slide_from_right" }} />
-            <Stack.Screen name="orders" options={{ animation: "slide_from_right" }} />
-          </Stack>
+          <DrawerProvider>
+            <StatusBar barStyle="dark-content" backgroundColor="#FDFBF7" />
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FDFBF7" } }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="auth" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="product/[id]" options={{ presentation: "card", animation: "slide_from_right" }} />
+              <Stack.Screen name="checkout" options={{ animation: "slide_from_bottom" }} />
+              <Stack.Screen name="admin" options={{ animation: "slide_from_right" }} />
+              <Stack.Screen name="orders" options={{ animation: "slide_from_right" }} />
+              <Stack.Screen name="subscribe" options={{ animation: "slide_from_right" }} />
+            </Stack>
+          </DrawerProvider>
         </AppProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
