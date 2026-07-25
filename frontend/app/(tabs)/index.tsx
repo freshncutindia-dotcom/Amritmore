@@ -62,19 +62,30 @@ function HeroVideo() {
 }
 
 function NativeHeroVideo() {
+  const [failed, setFailed] = React.useState(false);
   const player = useVideoPlayer(HERO_VIDEO, (p) => {
-    p.loop = true;
-    p.muted = true;
-    p.play();
+    try {
+      p.loop = true;
+      p.muted = true;
+      p.play();
+    } catch {
+      setFailed(true);
+    }
   });
+  if (failed) {
+    return <Image source={{ uri: HERO_URL }} style={StyleSheet.absoluteFillObject} contentFit="cover" />;
+  }
   return (
-    <VideoView
-      player={player}
-      style={StyleSheet.absoluteFillObject}
-      contentFit="cover"
-      nativeControls={false}
-      allowsPictureInPicture={false}
-    />
+    <>
+      <Image source={{ uri: HERO_URL }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+        nativeControls={false}
+        allowsPictureInPicture={false}
+      />
+    </>
   );
 }
 
