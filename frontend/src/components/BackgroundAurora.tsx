@@ -31,36 +31,36 @@ export default function BackgroundAurora() {
 
   const blob1 = useAnimatedStyle(() => ({
     transform: [
-      { translateX: interpolate(t1.value, [0, 1], [-60, 60]) },
-      { translateY: interpolate(t1.value, [0, 1], [-40, 40]) },
-      { scale: interpolate(t1.value, [0, 1], [1, 1.15]) },
+      { translateX: interpolate(t1.value, [0, 1], [-80, 80]) },
+      { translateY: interpolate(t1.value, [0, 1], [-60, 60]) },
+      { scale: interpolate(t1.value, [0, 1], [1, 1.25]) },
     ],
-    opacity: interpolate(t1.value, [0, 0.5, 1], [0.55, 0.75, 0.55]),
+    opacity: interpolate(t1.value, [0, 0.5, 1], [0.85, 1, 0.85]),
   }));
 
   const blob2 = useAnimatedStyle(() => ({
     transform: [
-      { translateX: interpolate(t2.value, [0, 1], [40, -40]) },
-      { translateY: interpolate(t2.value, [0, 1], [80, -20]) },
-      { scale: interpolate(t2.value, [0, 1], [1.1, 0.95]) },
+      { translateX: interpolate(t2.value, [0, 1], [60, -60]) },
+      { translateY: interpolate(t2.value, [0, 1], [100, -30]) },
+      { scale: interpolate(t2.value, [0, 1], [1.2, 0.9]) },
     ],
-    opacity: interpolate(t2.value, [0, 0.5, 1], [0.5, 0.7, 0.5]),
+    opacity: interpolate(t2.value, [0, 0.5, 1], [0.8, 1, 0.8]),
   }));
 
   const blob3 = useAnimatedStyle(() => ({
     transform: [
-      { translateX: interpolate(t3.value, [0, 1], [-30, 50]) },
-      { translateY: interpolate(t3.value, [0, 1], [30, -60]) },
-      { scale: interpolate(t3.value, [0, 1], [0.95, 1.2]) },
+      { translateX: interpolate(t3.value, [0, 1], [-40, 70]) },
+      { translateY: interpolate(t3.value, [0, 1], [40, -80]) },
+      { scale: interpolate(t3.value, [0, 1], [0.9, 1.3]) },
     ],
-    opacity: interpolate(t3.value, [0, 0.5, 1], [0.4, 0.65, 0.4]),
+    opacity: interpolate(t3.value, [0, 0.5, 1], [0.7, 0.95, 0.7]),
   }));
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {/* Base very-light sky wash */}
       <LinearGradient
-        colors={["#EAF4FE", "#F6FBFF", "#EEF7FF"]}
+        colors={["#DCEBFB", "#EAF4FE", "#D8ECFC"]}
         style={StyleSheet.absoluteFill}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -68,7 +68,7 @@ export default function BackgroundAurora() {
       {/* Aurora blobs */}
       <Animated.View style={[styles.blob, styles.blobA, blob1]}>
         <LinearGradient
-          colors={["rgba(120,190,240,0.55)", "rgba(120,190,240,0)"]}
+          colors={["rgba(90,170,235,0.85)", "rgba(90,170,235,0)"]}
           style={styles.blobFill}
           start={{ x: 0.5, y: 0.5 }}
           end={{ x: 1, y: 1 }}
@@ -77,7 +77,7 @@ export default function BackgroundAurora() {
 
       <Animated.View style={[styles.blob, styles.blobB, blob2]}>
         <LinearGradient
-          colors={["rgba(180,220,250,0.55)", "rgba(180,220,250,0)"]}
+          colors={["rgba(150,205,245,0.9)", "rgba(150,205,245,0)"]}
           style={styles.blobFill}
           start={{ x: 0.5, y: 0.5 }}
           end={{ x: 1, y: 1 }}
@@ -86,15 +86,15 @@ export default function BackgroundAurora() {
 
       <Animated.View style={[styles.blob, styles.blobC, blob3]}>
         <LinearGradient
-          colors={["rgba(210,235,255,0.55)", "rgba(210,235,255,0)"]}
+          colors={["rgba(200,230,255,0.85)", "rgba(200,230,255,0)"]}
           style={styles.blobFill}
           start={{ x: 0.5, y: 0.5 }}
           end={{ x: 1, y: 1 }}
         />
       </Animated.View>
 
-      {/* Soft top-to-bottom veil to keep content readable */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(255,255,255,0.28)" }]} />
+      {/* Soft white veil to keep content readable but let aurora bleed through */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(255,255,255,0.35)" }]} />
     </View>
   );
 }
