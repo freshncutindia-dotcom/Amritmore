@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,11 +8,40 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 
-import { theme, CUT_TYPES } from "@/src/theme";
+import { theme } from "@/src/theme";
 import { apiFetch } from "@/src/api";
 import { useApp } from "@/src/store";
 
-const UNITS = ["250g", "500g", "1kg"];
+type Product = {
+  id: string;
+  name: string;
+  description: string;
+  category: "cut-veg" | "cut-fruit" | "whole" | "ready-mix";
+  cut_type: string;
+  price: number;
+  unit: string;
+  image: string;
+  stock: number;
+  tags: string[];
+  available_cuts: string[];
+  available_weights: string[];
+};
+
+function weightToMultiplier(unit: string, base: string): number {
+  const parse = (u: string) => {
+    const m = u.trim().toLowerCase();
+    if (m.endsWith("kg")) return parseFloat(m) * 1000;
+    if (m.endsWith("g")) return parseFloat(m);
+    return 500;
+  };
+  const b = parse(base);
+  const u = parse(unit);
+  return b === 0 ? 1 : u / b;
+}
+
+function cutLabel(c: string): string {
+  return c.charAt(0).toUpperCase() + c.slice(1);
+}
 
 export default function ProductDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,10 +49,10 @@ export default function ProductDetail() {
   const router = useRouter();
   const { addToCart } = useApp();
 
-  const [product, setProduct] = useState<any>(null);
+  const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [cutType, setCutType] = useState<string>("");
-  const [unit, setUnit] = useState<string>("500g");
+  const [unit, setUnit] = useState<string>("");
   const [qty, setQty] = useState(1);
 
   const btnScale = useSharedValue(1);
@@ -32,13 +61,24 @@ export default function ProductDetail() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await apiFetch(`/products/${id}`);
+        const data: Product = await apiFetch(`/products/${id}`);
         setProduct(data);
-        setCutType(data.cut_type);
-        setUnit(data.unit || "500g");
+        setCutType(data.cut_type || data.available_cuts?.[0] || "whole");
+        setUnit(data.unit || data.available_weights?.[0] || "500g");
       } finally { setLoading(false); }
     })();
   }, [id]);
+
+  const showCutTab = useMemo(() => {
+    if (!product) return false;
+    if (product.category === "whole") return false;
+    return (product.available_cuts?.length ?? 0) > 0;
+  }, [product]);
+
+  const showCutSelection = useMemo(() => {
+    if (!product) return false;
+    return showCutTab && (product.available_cuts?.length ?? 0) > 1;
+  }, [product, showCutTab]);
 
   if (loading) return (
     <View style={{ flex: 1, backgroundColor: theme.colors.surface, alignItems: "center", justifyContent: "center" }}>
@@ -47,8 +87,8 @@ export default function ProductDetail() {
   );
   if (!product) return null;
 
-  const unitMultiplier = unit === "250g" ? 0.5 : unit === "1kg" ? 2 : 1;
-  const displayPrice = Math.round(product.price * unitMultiplier);
+  const mult = weightToMultiplier(unit, product.unit);
+  const displayPrice = Math.round(product.price * mult);
   const total = displayPrice * qty;
 
   const handleAdd = () => {
@@ -75,9 +115,11 @@ export default function ProductDetail() {
           <Pressable testID="back-btn" onPress={() => router.back()} style={[styles.backBtn, { top: insets.top + 12 }]}>
             <Ionicons name="chevron-back" size={22} color={theme.colors.onSurface} />
           </Pressable>
-          <View style={[styles.cutBadge, { top: insets.top + 12 }]}>
-            <Text style={styles.cutBadgeTxt}>{product.cut_type}</Text>
-          </View>
+          {product.category !== "whole" && (
+            <View style={[styles.cutBadge, { top: insets.top + 12 }]}>
+              <Text style={styles.cutBadgeTxt}>{cutLabel(cutType || product.cut_type)}</Text>
+            </View>
+          )}
         </View>
 
         <Animated.View entering={FadeInUp} style={styles.body}>
@@ -89,43 +131,52 @@ export default function ProductDetail() {
           </View>
           <Text style={styles.desc}>{product.description}</Text>
 
-          {(product.category === "cut-veg" || product.category === "cut-fruit") && (
-            <>
-              <Text style={styles.label}>Cut style</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {CUT_TYPES.filter((c) => c.id !== "all").map((c) => {
-                  const active = (cutType || product.cut_type) === c.id;
-                  return (
-                    <Pressable
-                      key={c.id}
-                      testID={`cut-opt-${c.id}`}
-                      onPress={() => { Haptics.selectionAsync(); setCutType(c.id); }}
-                      style={[styles.optChip, active && styles.optChipActive]}
-                    >
-                      <Text style={[styles.optChipTxt, active && styles.optChipTxtActive]}>{c.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </>
-          )}
-
-          <Text style={styles.label}>Pack size</Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            {UNITS.map((u) => {
+          {/* Weight tab — always shown */}
+          <Text style={styles.label}>Weight</Text>
+          <View style={styles.tabRow}>
+            {(product.available_weights || [product.unit]).map((u) => {
               const active = unit === u;
               return (
                 <Pressable
                   key={u}
-                  testID={`unit-${u}`}
+                  testID={`weight-${u}`}
                   onPress={() => { Haptics.selectionAsync(); setUnit(u); }}
-                  style={[styles.unitChip, active && styles.unitChipActive]}
+                  style={[styles.tabItem, active && styles.tabItemActive]}
                 >
-                  <Text style={[styles.unitTxt, active && styles.unitTxtActive]}>{u}</Text>
+                  <Text style={[styles.tabTxt, active && styles.tabTxtActive]}>{u}</Text>
+                  <Text style={[styles.tabPrice, active && styles.tabPriceActive]}>₹{Math.round(product.price * weightToMultiplier(u, product.unit))}</Text>
                 </Pressable>
               );
             })}
           </View>
+
+          {/* Cut type tab — only for pre-cut categories */}
+          {showCutTab && (
+            <>
+              <Text style={styles.label}>Cut type</Text>
+              {showCutSelection ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+                  {product.available_cuts.map((c) => {
+                    const active = cutType === c;
+                    return (
+                      <Pressable
+                        key={c}
+                        testID={`cut-${c}`}
+                        onPress={() => { Haptics.selectionAsync(); setCutType(c); }}
+                        style={[styles.cutChip, active && styles.cutChipActive]}
+                      >
+                        <Text style={[styles.cutChipTxt, active && styles.cutChipTxtActive]}>{cutLabel(c)}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              ) : (
+                <View style={[styles.cutChip, styles.cutChipActive, { alignSelf: "flex-start" }]}>
+                  <Text style={[styles.cutChipTxt, styles.cutChipTxtActive]}>{cutLabel(cutType || product.cut_type)}</Text>
+                </View>
+              )}
+            </>
+          )}
 
           <Text style={styles.label}>Quantity</Text>
           <View style={styles.qtyBox}>
@@ -171,14 +222,22 @@ const styles = StyleSheet.create({
   tagTxt: { color: theme.colors.brand, fontSize: 11, fontWeight: "600" },
   desc: { color: theme.colors.onSurfaceMuted, fontSize: 14, lineHeight: 22, marginTop: 6 },
   label: { fontSize: 14, fontWeight: "700", color: theme.colors.onSurface, marginTop: 22, marginBottom: 10 },
-  optChip: { paddingHorizontal: 14, height: 36, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface2, justifyContent: "center" },
-  optChipActive: { backgroundColor: theme.colors.brand, borderColor: theme.colors.brand },
-  optChipTxt: { fontSize: 12, color: theme.colors.onSurface, textTransform: "capitalize" },
-  optChipTxtActive: { color: theme.colors.onBrand, fontWeight: "600" },
-  unitChip: { flex: 1, height: 44, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface2, alignItems: "center", justifyContent: "center" },
-  unitChipActive: { backgroundColor: theme.colors.brandTint, borderColor: theme.colors.brand },
-  unitTxt: { color: theme.colors.onSurface, fontWeight: "500" },
-  unitTxtActive: { color: theme.colors.brand, fontWeight: "700" },
+
+  // Weight tab (segmented pills)
+  tabRow: { flexDirection: "row", gap: 10 },
+  tabItem: { flex: 1, height: 64, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface2, alignItems: "center", justifyContent: "center" },
+  tabItemActive: { backgroundColor: theme.colors.brandTint, borderColor: theme.colors.brand },
+  tabTxt: { color: theme.colors.onSurface, fontWeight: "600", fontSize: 14 },
+  tabTxtActive: { color: theme.colors.brand, fontWeight: "700" },
+  tabPrice: { color: theme.colors.onSurfaceMuted, fontSize: 12, marginTop: 2 },
+  tabPriceActive: { color: theme.colors.brand },
+
+  // Cut chips (horizontal scroll)
+  cutChip: { paddingHorizontal: 16, height: 40, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface2, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  cutChipActive: { backgroundColor: theme.colors.brand, borderColor: theme.colors.brand },
+  cutChipTxt: { color: theme.colors.onSurface, fontSize: 13, fontWeight: "500", textTransform: "capitalize" },
+  cutChipTxtActive: { color: theme.colors.onBrand, fontWeight: "700" },
+
   qtyBox: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: theme.colors.surface3, borderRadius: theme.radius.pill, padding: 4, gap: 12 },
   qBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: theme.colors.surface2, alignItems: "center", justifyContent: "center" },
   qtyN: { fontSize: 16, fontWeight: "700", minWidth: 20, textAlign: "center", color: theme.colors.onSurface },

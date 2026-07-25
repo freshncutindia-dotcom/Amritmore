@@ -32,10 +32,10 @@ export const theme = {
 };
 
 export const CATEGORIES = [
-  { id: "whole-veg", label: "Whole Veg", emoji: "🥦", image: "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80" },
-  { id: "cut-veg", label: "Pre-cut Veg", emoji: "🔪", image: "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80" },
-  { id: "whole-fruit", label: "Whole Fruit", emoji: "🍎", image: "https://images.unsplash.com/photo-1490474504059-bf2db5ab2348?w=600&q=80" },
-  { id: "cut-fruit", label: "Pre-cut Fruit", emoji: "🍉", image: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80" },
+  { id: "cut-veg", label: "Pre-cut Veggies", emoji: "🔪", image: "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80" },
+  { id: "cut-fruit", label: "Pre-cut Fruits", emoji: "🍉", image: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80" },
+  { id: "whole", label: "Whole Veg & Fruits", emoji: "🥦", image: "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80" },
+  { id: "ready-mix", label: "Ready-to-cook Mixes", emoji: "🍲", image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80" },
 ];
 
 export const CUT_TYPES = [
@@ -48,4 +48,5 @@ export const CUT_TYPES = [
   { id: "cubed", label: "Cubed" },
   { id: "grated", label: "Grated" },
   { id: "julienne", label: "Julienne" },
+  { id: "mix", label: "Mix" },
 ];
