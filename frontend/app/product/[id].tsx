@@ -24,6 +24,8 @@ type Recipe = {
 type Product = {
   id: string;
   name: string;
+  local_name?: string;
+  sku?: string;
   description: string;
   category: "cut-veg" | "cut-fruit" | "whole" | "ready-mix";
   cut_type: string;
@@ -181,6 +183,7 @@ export default function ProductDetail() {
 
         <Animated.View entering={FadeInUp} style={styles.body}>
           <Text style={styles.name}>{product.name}</Text>
+          {product.local_name ? <Text style={styles.localName}>{product.local_name}</Text> : null}
           <View style={styles.rowMeta}>
             {product.tags.map((t: string) => (
               <View key={t} style={styles.tag}><Text style={styles.tagTxt}>#{t}</Text></View>
@@ -289,6 +292,7 @@ const styles = StyleSheet.create({
 
   body: { padding: theme.spacing.lg, gap: 6 },
   name: { fontSize: 28, fontWeight: "700", color: theme.colors.onSurface },
+  localName: { fontSize: 14, color: theme.colors.onSurfaceMuted, fontStyle: "italic", marginTop: 4 },
   rowMeta: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8, marginBottom: 4 },
   tag: { backgroundColor: theme.colors.brandTint, paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.sm },
   tagTxt: { color: theme.colors.brand, fontSize: 11, fontWeight: "600" },

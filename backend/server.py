@@ -32,7 +32,7 @@ JWT_ALGO = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7
 
 # Product schema/seed version. Bump to force reseed on schema changes.
-SEED_VERSION = 5
+SEED_VERSION = 7
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -101,6 +101,8 @@ class ProductIn(BaseModel):
     available_weights: List[str] = ["500g"]
     cut_images: Dict[str, str] = {}
     recipes: List[Recipe] = []
+    sku: Optional[str] = None
+    local_name: Optional[str] = None
 
 
 class Product(ProductIn):
@@ -334,9 +336,13 @@ async def list_products(category: Optional[str] = None, cut_type: Optional[str] 
     if category and category != "all":
         query["category"] = category
     if cut_type and cut_type != "all":
-        query["available_cuts"] = cut_type
+        query["available_cuts"] = {"$regex": cut_type, "$options": "i"}
     if q:
-        query["name"] = {"$regex": q, "$options": "i"}
+        query["$or"] = [
+            {"name": {"$regex": q, "$options": "i"}},
+            {"local_name": {"$regex": q, "$options": "i"}},
+            {"sku": {"$regex": q, "$options": "i"}},
+        ]
     docs = await db.products.find(query, {"_id": 0}).to_list(500)
     return [Product(**d) for d in docs]
 
@@ -575,39 +581,178 @@ SEED_PRODUCTS = [
     {"name": "Dragon Fruit", "description": "Exotic pink flesh, subtle sweetness.", "category": "whole", "cut_type": "whole", "price": 129, "unit": "500g", "image": "https://images.unsplash.com/photo-1527325678964-54921661f888?w=600&q=80", "tags": ["exotic"], "available_cuts": ["whole"], "available_weights": ["250g", "500g"]},
     {"name": "Strawberries", "description": "Handpicked from Mahabaleshwar hills.", "category": "whole", "cut_type": "whole", "price": 149, "unit": "250g", "image": "https://images.unsplash.com/photo-1543528176-61b239494933?w=600&q=80", "tags": ["seasonal"], "available_cuts": ["whole"], "available_weights": ["250g", "500g"]},
 
-    # ---- Pre-cut vegetables (one product per vegetable, multiple cut choices) ----
-    {"name": "Onions", "description": "Choose your cut — sliced for salads, diced for tempering, or grated for masala.", "category": "cut-veg", "cut_type": "diced", "price": 59, "unit": "250g", "image": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80", "tags": ["prep-ready"], "available_cuts": ["sliced", "diced", "shredded", "grated"], "available_weights": STANDARD_WEIGHTS, "cut_images": {
-        "sliced": "https://images.unsplash.com/photo-1580201092675-a0a6a6cafbb1?w=600&q=80",
-        "diced": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
-        "shredded": "https://images.unsplash.com/photo-1615486511484-92e172cc4fe0?w=600&q=80",
-        "grated": "https://images.unsplash.com/photo-1601001435957-74f0958a93c5?w=600&q=80",
-    }},
-    {"name": "Potatoes", "description": "Peeled and cut as you like — cubed for curries, batonnet for fries.", "category": "cut-veg", "cut_type": "cubed", "price": 55, "unit": "500g", "image": "https://images.unsplash.com/photo-1567374783966-4a4a2b0d2b91?w=600&q=80", "tags": ["ready-to-cook"], "available_cuts": ["cubed", "sliced", "batonnet", "diced"], "available_weights": STANDARD_WEIGHTS, "cut_images": {
-        "cubed": "https://images.unsplash.com/photo-1567374783966-4a4a2b0d2b91?w=600&q=80",
-        "sliced": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
-        "batonnet": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&q=80",
-        "diced": "https://images.unsplash.com/photo-1600891964092-4316c288032e?w=600&q=80",
-    }},
-    {"name": "Carrots", "description": "Peeled & cut to your preference.", "category": "cut-veg", "cut_type": "batonnet", "price": 69, "unit": "250g", "image": "https://images.unsplash.com/photo-1582515073490-39981397c445?w=600&q=80", "tags": ["chef-cut"], "available_cuts": ["batonnet", "diced", "julienne", "grated"], "available_weights": STANDARD_WEIGHTS, "cut_images": {
-        "batonnet": "https://images.unsplash.com/photo-1582515073490-39981397c445?w=600&q=80",
-        "diced": "https://images.unsplash.com/photo-1447175008436-054170c2e979?w=600&q=80",
-        "julienne": "https://images.unsplash.com/photo-1590165482129-1b8b27698780?w=600&q=80",
-        "grated": "https://images.unsplash.com/photo-1518977956812-cd3dbadaaf31?w=600&q=80",
-    }},
-    {"name": "Cabbage", "description": "Freshly shredded or diced — for tacos, salads and stir-fry.", "category": "cut-veg", "cut_type": "shredded", "price": 49, "unit": "250g", "image": "https://images.unsplash.com/photo-1571168290120-ee27fbdb3fe0?w=600&q=80", "tags": [], "available_cuts": ["shredded", "sliced", "diced"], "available_weights": STANDARD_WEIGHTS, "cut_images": {
-        "shredded": "https://images.unsplash.com/photo-1571168290120-ee27fbdb3fe0?w=600&q=80",
-        "sliced": "https://images.unsplash.com/photo-1594282486552-05b4d80fbb9f?w=600&q=80",
-        "diced": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
-    }},
-    {"name": "Bell Peppers", "description": "Multi-color capsicum — julienne, diced or sliced.", "category": "cut-veg", "cut_type": "julienne", "price": 79, "unit": "250g", "image": "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80", "tags": ["colorful"], "available_cuts": ["julienne", "diced", "sliced"], "available_weights": ["250g", "500g"], "cut_images": {
-        "julienne": "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80",
-        "diced": "https://images.unsplash.com/photo-1525607551316-4a8e16d1f9ba?w=600&q=80",
-        "sliced": "https://images.unsplash.com/photo-1563565375-f3fdfdbefa83?w=600&q=80",
-    }},
-    {"name": "Beetroot", "description": "Grated or cubed — vibrant, antioxidant-rich.", "category": "cut-veg", "cut_type": "grated", "price": 65, "unit": "250g", "image": "https://images.unsplash.com/photo-1593105544559-ecb03bf76f82?w=600&q=80", "tags": ["antioxidant"], "available_cuts": ["grated", "cubed", "sliced"], "available_weights": ["250g", "500g"]},
-    {"name": "Cauliflower Florets", "description": "Pre-cut florets, ready to cook.", "category": "cut-veg", "cut_type": "diced", "price": 59, "unit": "250g", "image": "https://images.unsplash.com/photo-1568584711271-6c929fb49b60?w=600&q=80", "tags": ["ready-to-cook"], "available_cuts": ["diced"], "available_weights": ["250g", "500g"]},
-    {"name": "Green Beans", "description": "French-cut or chopped — sauté-ready.", "category": "cut-veg", "cut_type": "sliced", "price": 79, "unit": "250g", "image": "https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?w=600&q=80", "tags": [], "available_cuts": ["sliced", "julienne"], "available_weights": ["250g", "500g"]},
+    # ---- Pre-cut vegetables (imported from Freshncut catalog) ----
+    # placeholder — actual list appended programmatically below via CUTVEG_CATALOG
+]
 
+
+# Freshncut pre-cut vegetables catalog (SKU, English name, Local name, list of cut types)
+CUTVEG_CATALOG = [
+    ("FNCAMT", "Amaranth", "Rajgira / Lal Math", ["peeled"]),
+    ("FNCASH", "Ash Gourd", "Petha / Kohla", ["diced"]),
+    ("FNCASP", "Asparagus", "Shatavari", ["diagonally sliced"]),
+    ("FNCBCN", "Baby Corn", "Baby Corn", ["halves", "quarters"]),
+    ("FNCBNS", "Banana Stem", "Tana / Khod", ["sliced", "diced"]),
+    ("FNCBSL", "Basil Leaves", "Tulsi Patta", ["peeled"]),
+    ("FNCBPT", "Baby Potato", "Dum Aloo", ["whole"]),
+    ("FNCBET", "Beetroot", "Chukandar / Beet", ["sliced", "diced", "julienne", "batonnet"]),
+    ("FNCBRG", "Bitter Gourd", "Karela / Karli", ["sliced-full", "sliced-half", "diced", "stuff long (halved)", "stuff long (quartered)"]),
+    ("FNCBTG", "Bottle Gourd", "Loki / Dudhi", ["sliced", "diced"]),
+    ("FNCBBH", "Brinjal", "Bharata Baingan / Vangi", ["whole"]),
+    ("FNCBKT", "Brinjal Kateri", "Baingan / Vangi", ["diced", "quarters"]),
+    ("FNCBRB", "Broad / Flat Beans", "Sem / Ghevada / Val", ["peeled", "fine long"]),
+    ("FNCCBG", "Cabbage", "Patta Gobi / Kobi", ["shredded"]),
+    ("FNCCCM", "Capsicum", "Shimla Mirch / Mirchi", ["rings", "julienne", "diced", "halved", "quartered", "minced", "top removed"]),
+    ("FNCCGR", "Capsicum Mix", "Shimla Mirch (Lal & Hirvi)", ["rings", "julienne", "diced", "halved", "quartered", "minced", "top removed"]),
+    ("FNCCRT", "Carrot", "Gajar", ["julienne", "sliced", "batonnet", "brunoise", "diced", "shredded"]),
+    ("FNCCLF", "Cauliflower", "Phul Gobi / Kobi", ["mini florets", "medium florets", "cleaned stems"]),
+    ("FNCTM",  "Cherry Tomato", "Cherry Tamatar", ["halves", "quarters"]),
+    ("FCCLB",  "Cluster Bean", "Gwar / Gavar", ["fine long", "fine chopped"]),
+    ("FNCCCN", "Coconut", "Nariyal / Naral", ["grated", "diced-large", "sliced"]),
+    ("FNCCOL", "Colocasia", "Arbi / Aloo", ["sliced", "diced"]),
+    ("FNCCOR", "Coriander", "Hara Dhaniya / Kothinmbir", ["peeled"]),
+    ("FNCCWP", "Cowpea Beans", "Lobia / Chawali", ["peeled", "fine long", "fine chopped"]),
+    ("FNCCCB", "Cucumber", "Khira / Kakadi", ["sliced", "diced", "quarters", "spears"]),
+    ("FCCRL",  "Curry Leaves", "Curry Patta / Kadhi Patta", ["cleaned"]),
+    ("FNCDLL", "Dill Leaves", "Suva / Shepu", ["peeled"]),
+    ("FNCDRM", "Drumstick", "Shevga", ["fine long 2in", "sambhar long 3in"]),
+    ("FNCFNG", "Fenugreek", "Methi", ["peeled"]),
+    ("FNCFRB", "French Beans", "Sem Fali / Farasbee", ["fine long", "fine chopped"]),
+    ("FNCGRL", "Garlic", "Lahsun / Lasun", ["peeled", "diced", "chopped", "smashed"]),
+    ("FNCGNR", "Ginger", "Adrak / Aale", ["chopped", "smashed", "sliced"]),
+    ("FNCAWL", "Gooseberry", "Awala / Amla", ["sliced", "diced"]),
+    ("FNCGCH", "Green Chilli", "Hari Mirch / Mirchi", ["diced", "fine long", "quarters", "halves"]),
+    ("FNCGRP", "Green Peas", "Matar / Hirva Vatana", ["peeled"]),
+    ("FNCGYM", "Green Pumpkin", "Kaddu / Bhopla", ["diced", "batonnet"]),
+    ("FNCGNT", "Groundnut Pods", "Mungfali / Bhuimug", ["whole"]),
+    ("FNCIVG", "Ivy Gourd", "Tindora / Tendali", ["sliced", "diced", "wedges"]),
+    ("FCLDF",  "Lady's Finger", "Bhindi / Bhendi", ["roundels", "fine longs", "cross longs", "stuff long (halved)", "stuff long (quartered)"]),
+    ("FLMN",   "Lemon", "Nimbu / Limbu", ["sliced", "quarters", "halves"]),
+    ("FNCLMG", "Lemon Grass", "Nimbu Ghaas / Gavati Chaha", ["fine long"]),
+    ("FNCLSM", "Lotus Stem", "Kamal Kakadi", ["sliced"]),
+    ("FNCMIN", "Mint Leaves", "Pudina", ["peeled"]),
+    ("FNCMSR", "Mushroom", "Chatrak / Alambi", ["sliced", "quarters", "diced", "julienne"]),
+    ("FNCONN", "Onion", "Pyaj / Kanda", ["rings", "diced", "strips"]),
+    ("FNCPNG", "Pointed Gourd", "Parwal / Parval", ["sliced", "diced"]),
+    ("FNCPOT", "Potato", "Aloo / Batata", ["sliced", "wedges", "diced", "sticks (finger chips)"]),
+    ("FNCRDS", "Radish", "Muli / Mula", ["sliced", "diced"]),
+    ("FNCRBN", "Raw Banana", "Kaccha Kela", ["sliced", "diagonally cut"]),
+    ("FNCRPP", "Raw Papaya", "Kaccha Papita / Papaya", ["diced", "fine longs"]),
+    ("FNCRCG", "Red Cabbage", "Lal Gobhi / Lal Kobi", ["shredded"]),
+    ("FNCRDG", "Ridge Gourd", "Turai / Dodka", ["sliced", "diced"]),
+    ("FNCSMO", "Sambar Onion", "Sambar Pyaj / Kanda", ["whole", "halves"]),
+    ("FNCSNG", "Snake Gourd", "Chichinda / Padwal", ["sliced", "diced"]),
+    ("FNCSPI", "Spinach", "Palak", ["peeled"]),
+    ("FNCSPG", "Sponge Gourd", "Gilki / Ghosale", ["sliced", "diced"]),
+    ("FNCSRO", "Spring Onion", "Hara Pyaj / Kanda Pat", ["fine long", "chopped"]),
+    ("FNCSPR", "Sprouts", "Sprouts", ["mixed", "mataki", "moong", "methi", "chana"]),
+    ("FNCSWT", "Sweet Corn", "Makai / Maka", ["peeled"]),
+    ("FNCSWP", "Sweet Potato", "Shakarkand / Ratale", ["roundels"]),
+    ("FNCSTA", "Sweet Tamarind", "Imli / Chinch", ["whole cleaned"]),
+    ("FNCTOM", "Tomato", "Tamatar", ["sliced", "wedges", "diced"]),
+    ("FNCTRN", "Turnips", "Shalgam / Salgam", ["sliced-full", "sliced-half", "diced"]),
+    ("FNCYAM", "Yam", "Suran", ["diced-med", "diced-large", "batonnet"]),
+    ("FNCYPM", "Yellow Pumpkin", "Kaddu / Lal Bhopla", ["diced", "batonnet"]),
+]
+
+# Reasonable Unsplash images for the common ones; fallback to a generic cut-veg photo.
+_CUTVEG_IMAGE_BY_NAME = {
+    "onion": "https://images.unsplash.com/photo-1580201092675-a0a6a6cafbb1?w=600&q=80",
+    "potato": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
+    "baby potato": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
+    "carrot": "https://images.unsplash.com/photo-1582515073490-39981397c445?w=600&q=80",
+    "cabbage": "https://images.unsplash.com/photo-1571168290120-ee27fbdb3fe0?w=600&q=80",
+    "red cabbage": "https://images.unsplash.com/photo-1594282486552-05b4d80fbb9f?w=600&q=80",
+    "cauliflower": "https://images.unsplash.com/photo-1568584711271-6c929fb49b60?w=600&q=80",
+    "tomato": "https://images.unsplash.com/photo-1546470427-e5380b6d1cf6?w=600&q=80",
+    "cherry tomato": "https://images.unsplash.com/photo-1592841200221-a6898f307baa?w=600&q=80",
+    "capsicum": "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80",
+    "capsicum mix": "https://images.unsplash.com/photo-1525607551316-4a8e16d1f9ba?w=600&q=80",
+    "beetroot": "https://images.unsplash.com/photo-1593105544559-ecb03bf76f82?w=600&q=80",
+    "bitter gourd": "https://images.unsplash.com/photo-1642781125538-1a3c69adbf27?w=600&q=80",
+    "bottle gourd": "https://images.unsplash.com/photo-1594282497782-adb5b1efdf3f?w=600&q=80",
+    "brinjal": "https://images.unsplash.com/photo-1615484477778-ca3b77940c25?w=600&q=80",
+    "brinjal kateri": "https://images.unsplash.com/photo-1615484477778-ca3b77940c25?w=600&q=80",
+    "spinach": "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=600&q=80",
+    "coriander": "https://images.unsplash.com/photo-1602753172773-f74dcf60e42a?w=600&q=80",
+    "mint leaves": "https://images.unsplash.com/photo-1600841867003-46a30cbec92f?w=600&q=80",
+    "basil leaves": "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&q=80",
+    "fenugreek": "https://images.unsplash.com/photo-1594282497782-adb5b1efdf3f?w=600&q=80",
+    "dill leaves": "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&q=80",
+    "curry leaves": "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&q=80",
+    "asparagus": "https://images.unsplash.com/photo-1611743140544-c56d2bc7d34f?w=600&q=80",
+    "baby corn": "https://images.unsplash.com/photo-1601472544106-b0b0d7f0ce7d?w=600&q=80",
+    "sweet corn": "https://images.unsplash.com/photo-1601472544106-b0b0d7f0ce7d?w=600&q=80",
+    "cucumber": "https://images.unsplash.com/photo-1568569350062-ebfa3cb195df?w=600&q=80",
+    "french beans": "https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?w=600&q=80",
+    "cluster bean": "https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?w=600&q=80",
+    "cowpea beans": "https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?w=600&q=80",
+    "broad / flat beans": "https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?w=600&q=80",
+    "green chilli": "https://images.unsplash.com/photo-1583258292688-d0213dc5a3a8?w=600&q=80",
+    "green peas": "https://images.unsplash.com/photo-1587735243615-c03f25aaff15?w=600&q=80",
+    "garlic": "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=600&q=80",
+    "ginger": "https://images.unsplash.com/photo-1615485500704-8e990f9900f7?w=600&q=80",
+    "lemon": "https://images.unsplash.com/photo-1587496679742-bad053cd6fbb?w=600&q=80",
+    "lemon grass": "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&q=80",
+    "mushroom": "https://images.unsplash.com/photo-1518588178123-46a25da7601c?w=600&q=80",
+    "raw banana": "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600&q=80",
+    "raw papaya": "https://images.unsplash.com/photo-1517282009859-f000ec3b26fe?w=600&q=80",
+    "radish": "https://images.unsplash.com/photo-1553536645-a1b5c14b8bef?w=600&q=80",
+    "sweet potato": "https://images.unsplash.com/photo-1596097635121-14b8b8b2d9b1?w=600&q=80",
+    "yam": "https://images.unsplash.com/photo-1596097635121-14b8b8b2d9b1?w=600&q=80",
+    "coconut": "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=600&q=80",
+    "gooseberry": "https://images.unsplash.com/photo-1615484477778-ca3b77940c25?w=600&q=80",
+    "green pumpkin": "https://images.unsplash.com/photo-1509461399763-2416a41bef1e?w=600&q=80",
+    "yellow pumpkin": "https://images.unsplash.com/photo-1509461399763-2416a41bef1e?w=600&q=80",
+    "drumstick": "https://images.unsplash.com/photo-1567375698348-5d9d5ae99de0?w=600&q=80",
+    "sambar onion": "https://images.unsplash.com/photo-1580201092675-a0a6a6cafbb1?w=600&q=80",
+    "spring onion": "https://images.unsplash.com/photo-1580201092675-a0a6a6cafbb1?w=600&q=80",
+    "amaranth": "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=600&q=80",
+    "banana stem": "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600&q=80",
+    "colocasia": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
+    "ivy gourd": "https://images.unsplash.com/photo-1594282497782-adb5b1efdf3f?w=600&q=80",
+    "ridge gourd": "https://images.unsplash.com/photo-1594282497782-adb5b1efdf3f?w=600&q=80",
+    "sponge gourd": "https://images.unsplash.com/photo-1594282497782-adb5b1efdf3f?w=600&q=80",
+    "snake gourd": "https://images.unsplash.com/photo-1594282497782-adb5b1efdf3f?w=600&q=80",
+    "ash gourd": "https://images.unsplash.com/photo-1509461399763-2416a41bef1e?w=600&q=80",
+    "pointed gourd": "https://images.unsplash.com/photo-1594282497782-adb5b1efdf3f?w=600&q=80",
+    "turnips": "https://images.unsplash.com/photo-1553536645-a1b5c14b8bef?w=600&q=80",
+    "lotus stem": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&q=80",
+    "sweet tamarind": "https://images.unsplash.com/photo-1615484477778-ca3b77940c25?w=600&q=80",
+    "sprouts": "https://images.unsplash.com/photo-1553536645-a1b5c14b8bef?w=600&q=80",
+    "groundnut pods": "https://images.unsplash.com/photo-1615484477778-ca3b77940c25?w=600&q=80",
+    "lady's finger": "https://images.unsplash.com/photo-1615484477778-ca3b77940c25?w=600&q=80",
+}
+
+_DEFAULT_CUTVEG_IMG = "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80"
+
+
+def _build_cutveg_products():
+    items = []
+    for sku, name, local_name, cuts in CUTVEG_CATALOG:
+        img = _CUTVEG_IMAGE_BY_NAME.get(name.lower(), _DEFAULT_CUTVEG_IMG)
+        items.append({
+            "sku": sku,
+            "name": name,
+            "local_name": local_name,
+            "category": "cut-veg",
+            "cut_type": cuts[0] if cuts else "whole",
+            "price": 59.0,
+            "unit": "250g",
+            "image": img,
+            "stock": 50,
+            "tags": ["prep-ready"],
+            "description": f"Freshly cut {name.lower()} ({local_name}). Choose your preferred cut: {', '.join(cuts)}.",
+            "available_cuts": cuts if cuts else ["whole"],
+            "available_weights": ["250g", "500g", "1kg"],
+        })
+    return items
+
+
+SEED_PRODUCTS.extend(_build_cutveg_products())
+
+
+SEED_PRODUCTS.extend([
     # ---- Pre-cut fruits ----
     {"name": "Mango", "description": "Sweet mango — diced cubes or sliced strips, chilled & ready.", "category": "cut-fruit", "cut_type": "diced", "price": 199, "unit": "250g", "image": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80", "tags": ["ready-to-eat"], "available_cuts": ["diced", "sliced", "cubed"], "available_weights": ["250g", "500g"], "cut_images": {
         "diced": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80",
@@ -642,7 +787,7 @@ SEED_PRODUCTS = [
     {"name": "Pav Bhaji Mix", "description": "Potato, cauliflower, peas, capsicum — bhaji-ready.", "category": "ready-mix", "cut_type": "mix", "price": 119, "unit": "500g", "image": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&q=80", "tags": ["indian", "street-food"], "available_cuts": ["mix"], "available_weights": ["500g", "1kg"], "recipes": [
         {"title": "Mumbai Pav Bhaji", "time_mins": 25, "servings": 4, "image": "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&q=80", "ingredients": ["1 pack Pav Bhaji Mix", "3 tbsp butter", "2 tbsp pav bhaji masala", "1 lemon", "Coriander leaves", "Pav buns"], "steps": ["Boil the veggie mix till soft, mash coarsely.", "Heat butter, add masala, sauté 1 minute.", "Add mashed veggies, cook 8-10 minutes.", "Squeeze lemon, top with coriander.", "Toast pav in butter, serve hot."]},
     ]},
-]
+])
 
 SEED_PINCODES = [
     {"pincode": "560001", "area": "Bengaluru Central", "delivery_fee": 0, "eta_hours": 2},

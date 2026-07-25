@@ -1,0 +1,38 @@
+{
+  "summary": "Backend-only regression + new-feature testing for the v7 pre-cut vegetable catalog (62 Freshncut SKUs added with sku + local_name fields, regex-based case-insensitive cut_type filter, and expanded /products search over name/local_name/sku). Added a new focused test module test_cutveg_catalog.py (15 tests, all pass). Refreshed 4 stale v3-era regression tests in test_freshcuts_api.py to align with the v7 seed (~90 products, 65 cut-veg, product named 'Onion' not 'Onions', variant cuts like 'sliced-full' now match 'sliced' filter). Full suite: 65/65 tests pass in ~5s. Every review-request checklist item is verified end-to-end against the public EXPO_PUBLIC_BACKEND_URL.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cutveg_catalog.py",
+    "/app/backend/tests/test_freshcuts_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 840 lines (was 695) — well beyond the 700-line guideline. Strongly recommend extracting CUTVEG_CATALOG (~65 lines), _CUTVEG_IMAGE_BY_NAME (~65 lines) and _build_cutveg_products() into a separate module e.g. backend/seed_cutveg.py. Non-blocking, style/maintainability only.",
+    "The /api/products endpoint applies the cut_type regex directly on the raw user string ({\"$regex\": cut_type, \"$options\": \"i\"}). Untrusted regex characters (e.g. q='(((') will hit MongoDB as-is and either error out or produce broad matches. Suggest re.escape() before passing to $regex, or Pydantic-validate cut_type against a known set. Same applies to the q parameter in the $or search.",
+    "Product model has sku: Optional[str] = None but there is no uniqueness constraint or index on sku. Two seeds with the same SKU would silently coexist. Consider adding a unique index (or an application-level guard in the seeder) so admins uploading CSVs cannot introduce duplicate SKUs.",
+    "SEED_PRODUCTS has grown to ~90 entries embedded as Python literals. If the source of truth is the Excel file the user provided, consider persisting it as a JSON/CSV asset under backend/seed_data/ and loading at startup; makes future updates diffable."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cutveg_catalog.py (new — 15 tests for v7 catalog: sku, local_name, search, regex cut_type)",
+    "/app/backend/tests/test_freshcuts_api.py (refreshed 4 stale v3-era assertions: catalog size 30-40 -> >=80; multi-cut heuristic relaxed; sliced filter uses substring; renamed Onions->Onion)"
+  ],
+  "success_rate": {
+    "backend": "100% (65/65 tests, incl. 15 brand-new v7 tests)",
+    "frontend": "not tested (backend-only request per review)"
+  },
+  "seed_data_creation": "None. Tests are read-only against the seeded v7 catalog and existing pincodes/box definitions.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "v7 seed is confirmed live via public URL: 90 total products, 65 cut-veg (all with FNC-prefixed sku + non-null local_name), 14 whole, 5 cut-fruit, 6 ready-mix. Anchor product: sku=FNCONN, name='Onion', local_name='Pyaj / Kanda', available_cuts=['rings','diced','strips']. /api/products?q= searches name+local_name+sku (case-insensitive regex). /api/products?cut_type= is a case-insensitive substring regex against available_cuts array, so 'diced' matches 'diced (3-4 cm)' and 'sliced' matches 'sliced-full', 'diagonally sliced' etc. cut_type='all' is treated as no filter. New tests to reuse for future catalog changes live in /app/backend/tests/test_cutveg_catalog.py.",
+  "rca_of_issue": "N/A — feature verification. All checklist items from the review request pass (cut-veg count>=60, sku/local_name populated, FNCONN Onion identity, pyaj/FNCONN search hits, diced regex expands to variants, GET-by-id returns full fields, entire prior suite still green after minor v3->v7 assertion refresh)."
+}

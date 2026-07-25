@@ -14,8 +14,9 @@ import { FloatingCartFab } from "./index";
 import { useDrawer } from "@/src/components/SideDrawer";
 
 type Product = {
-  id: string; name: string; price: number; unit: string; image: string;
+  id: string; name: string; local_name?: string; sku?: string; price: number; unit: string; image: string;
   category: string; cut_type: string; description: string; stock: number; tags: string[];
+  available_cuts?: string[]; available_weights?: string[];
 };
 
 export default function Shop() {
@@ -162,6 +163,7 @@ function GridCard({ product, index, onOpen, onAdd }: { product: Product; index: 
         <View style={styles.cutBadge}><Text style={styles.cutBadgeTxt}>{product.cut_type}</Text></View>
         <View style={{ padding: theme.spacing.md }}>
           <Text numberOfLines={1} style={styles.gName}>{product.name}</Text>
+          {product.local_name ? <Text numberOfLines={1} style={styles.gLocal}>{product.local_name}</Text> : null}
           <Text style={styles.gMeta}>{product.unit}</Text>
           <View style={styles.gRow}>
             <Text style={styles.gPrice}>₹{product.price}</Text>
@@ -203,6 +205,7 @@ const styles = StyleSheet.create({
   cutBadge: { position: "absolute", top: 10, left: 10, backgroundColor: "rgba(255,255,255,0.9)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.pill },
   cutBadgeTxt: { fontSize: 10, fontWeight: "600", color: theme.colors.onSurface, textTransform: "capitalize" },
   gName: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 14 },
+  gLocal: { color: theme.colors.onSurfaceMuted, fontSize: 11, marginTop: 1, fontStyle: "italic" },
   gMeta: { color: theme.colors.onSurfaceMuted, fontSize: 12, marginTop: 2 },
   gRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
   gPrice: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 15 },
