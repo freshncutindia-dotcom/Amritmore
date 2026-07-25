@@ -163,7 +163,7 @@ function SideDrawer({ visible, onClose, onFullyClosed }: { visible: boolean; onC
                   }}
                   style={styles.catRow}
                 >
-                  <Image source={{ uri: c.image }} style={styles.catImg} contentFit="cover" />
+                  <Image source={c.image} style={styles.catImg} contentFit="cover" />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.catLbl}>{c.label}</Text>
                     <Text style={styles.catMeta}>Explore →</Text>

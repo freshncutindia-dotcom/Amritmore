@@ -77,22 +77,19 @@ export default function Home() {
           <Text style={styles.brandGreet}>{user?.name ? `Hi ${user.name.split(" ")[0]}, ` : ""}Farm-fresh, minutes away.</Text>
         </View>
 
-        {/* Hero CTA banner */}
-        <View style={styles.hero}>
+        {/* Horizontal promo/video banner slot */}
+        <View style={styles.videoBanner}>
           <Image source={{ uri: HERO_URL }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
           <LinearGradient
             colors={["rgba(43,58,44,0.15)", "rgba(43,58,44,0.75)"]}
             style={StyleSheet.absoluteFillObject}
           />
-          <View style={styles.heroContent}>
-            <Text style={styles.heroTitle}>Farm‑fresh{"\n"}delivered in hours.</Text>
-            <Pressable
-              testID="hero-cta-btn"
-              onPress={() => router.push("/(tabs)/shop")}
-              style={styles.heroCta}
-            >
-              <Text style={styles.heroCtaText}>Shop Fresh</Text>
-              <Ionicons name="arrow-forward" size={16} color={theme.colors.onSurface} />
+          <View style={styles.videoBannerBody}>
+            <View style={styles.videoTag}><Ionicons name="play-circle" size={12} color="#fff" /><Text style={styles.videoTagTxt}>How we cut</Text></View>
+            <Text style={styles.videoTitle}>Farm-fresh, cut on demand.</Text>
+            <Pressable testID="hero-cta-btn" onPress={() => router.push("/(tabs)/shop")} style={styles.videoCta}>
+              <Text style={styles.videoCtaTxt}>Shop Fresh</Text>
+              <Ionicons name="arrow-forward" size={14} color={theme.colors.onSurface} />
             </Pressable>
           </View>
         </View>
@@ -111,7 +108,7 @@ export default function Home() {
                   router.push({ pathname: "/(tabs)/shop", params: { category: c.id } });
                 }}
               >
-                <Image source={{ uri: c.image }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                <Image source={c.image} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                 <LinearGradient colors={["transparent", "rgba(0,0,0,0.55)"]} style={StyleSheet.absoluteFillObject} />
                 <Text style={styles.catEmoji}>{c.emoji}</Text>
                 <Text style={styles.catLabel}>{c.label}</Text>
@@ -265,13 +262,23 @@ const styles = StyleSheet.create({
   heroIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.2)", borderWidth: 1, borderColor: "rgba(255,255,255,0.35)" },
   heroTitle: { color: "#fff", fontSize: 26, fontWeight: "700", lineHeight: 32, marginBottom: 12 },
 
-  brandHeader: { backgroundColor: theme.colors.surface, paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.md, alignItems: "center" },
-  brandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: theme.spacing.sm },
+  brandHeader: { backgroundColor: theme.colors.surface, paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm, alignItems: "center" },
+  brandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: theme.spacing.xs },
   brandMenuBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface2, ...theme.shadow.sm },
   locPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.colors.brandTint, paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill },
   locTxt: { fontSize: 11, fontWeight: "600", color: theme.colors.brand },
-  brandLogo: { width: 260, height: 110, marginTop: theme.spacing.xs },
-  brandGreet: { fontSize: 13, color: theme.colors.onSurfaceMuted, marginTop: -8, marginBottom: theme.spacing.sm, textAlign: "center" },
+  brandLogo: { width: 220, height: 84 },
+  brandGreet: { fontSize: 12, color: theme.colors.onSurfaceMuted, marginTop: -6, textAlign: "center" },
+
+  videoBanner: { height: 140, marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.md, borderRadius: theme.radius.lg, overflow: "hidden", ...theme.shadow.md },
+  videoBannerBody: { flex: 1, padding: theme.spacing.md, justifyContent: "flex-end" },
+  videoTag: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.22)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.pill, marginBottom: 6 },
+  videoTagTxt: { color: "#fff", fontSize: 10, fontWeight: "700", letterSpacing: 0.4 },
+  videoTitle: { color: "#fff", fontSize: 20, fontWeight: "700", marginBottom: 8 },
+  videoCta: { flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radius.pill },
+  videoCtaTxt: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 12 },
+
+  sectionTight: { marginTop: theme.spacing.lg },
   heroCta: { alignSelf: "flex-start", backgroundColor: "#fff", paddingHorizontal: 18, paddingVertical: 12, borderRadius: theme.radius.pill, flexDirection: "row", alignItems: "center", gap: 8, ...theme.shadow.md },
   heroCtaText: { color: theme.colors.onSurface, fontWeight: "600", fontSize: 14 },
 
@@ -280,10 +287,10 @@ const styles = StyleSheet.create({
   link: { color: theme.colors.brand, fontWeight: "600", fontSize: 13 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: theme.spacing.lg },
 
-  catGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: theme.spacing.lg, gap: theme.spacing.md },
-  catCard: { width: "47%", height: 120, borderRadius: theme.radius.lg, overflow: "hidden", justifyContent: "flex-end", padding: theme.spacing.md, ...theme.shadow.sm },
-  catEmoji: { fontSize: 28, position: "absolute", top: 10, right: 12 },
-  catLabel: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  catGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: theme.spacing.lg, gap: theme.spacing.sm },
+  catCard: { width: "48.5%", height: 96, borderRadius: theme.radius.lg, overflow: "hidden", justifyContent: "flex-end", padding: theme.spacing.sm, ...theme.shadow.sm },
+  catEmoji: { fontSize: 22, position: "absolute", top: 8, right: 10 },
+  catLabel: { color: "#fff", fontWeight: "700", fontSize: 13 },
 
   bigCard: { width: 175, backgroundColor: theme.colors.surface2, borderRadius: theme.radius.lg, overflow: "hidden", ...theme.shadow.sm },
   bigImg: { width: "100%", height: 130 },

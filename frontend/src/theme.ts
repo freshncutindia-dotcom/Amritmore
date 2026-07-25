@@ -32,10 +32,10 @@ export const theme = {
 };
 
 export const CATEGORIES = [
-  { id: "cut-veg", label: "Pre-cut Veggies", emoji: "🔪", image: "https://images.unsplash.com/photo-1598295309854-cfa5819004d8?w=600&q=80" },
-  { id: "cut-fruit", label: "Pre-cut Fruits", emoji: "🍉", image: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80" },
-  { id: "whole", label: "Whole Veg & Fruits", emoji: "🥦", image: "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&q=80" },
-  { id: "ready-mix", label: "Ready-to-cook Mixes", emoji: "🍲", image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80" },
+  { id: "cut-veg", label: "Pre-cut Veggies", emoji: "🔪", image: require("../assets/images/categories/cut-veg.webp") },
+  { id: "cut-fruit", label: "Pre-cut Fruits", emoji: "🍉", image: require("../assets/images/categories/cut-fruit.webp") },
+  { id: "whole", label: "Whole Veggies & Fruits", emoji: "🥦", image: require("../assets/images/categories/whole.webp") },
+  { id: "ready-mix", label: "Ready-to-cook Mixes", emoji: "🍲", image: require("../assets/images/categories/ready-mix.webp") },
 ];
 
 export const CUT_TYPES = [
