@@ -49,7 +49,7 @@ export default function CartScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
+    <View style={{ flex: 1, backgroundColor: "transparent" }}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.title}>My Basket</Text>
         <Text style={styles.subtitle}>{cartCount} item{cartCount !== 1 ? "s" : ""}</Text>

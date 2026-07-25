@@ -35,15 +35,18 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: theme.colors.brand,
-        tabBarInactiveTintColor: theme.colors.onSurfaceMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "500", marginTop: -2 },
+        tabBarActiveTintColor: "#1F2A3A",
+        tabBarInactiveTintColor: "rgba(31,42,58,0.55)",
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600", marginTop: -2 },
         tabBarStyle: styles.tabBar,
         tabBarBackground: () =>
           Platform.OS === "ios" ? (
-            <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
+            <>
+              <BlurView intensity={35} tint="light" style={StyleSheet.absoluteFill} />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(255,255,255,0.55)" }]} />
+            </>
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.surface2 }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(255,255,255,0.72)" }]} />
           ),
       }}
     >
@@ -88,11 +91,11 @@ const styles = StyleSheet.create({
   tabBar: {
     position: "absolute",
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
+    borderTopColor: "rgba(255,255,255,0.9)",
     height: 78,
     paddingTop: 8,
     paddingBottom: 20,
-    backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.surface2,
+    backgroundColor: "transparent",
   },
   badge: {
     position: "absolute",

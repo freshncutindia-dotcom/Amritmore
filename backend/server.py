@@ -33,7 +33,7 @@ JWT_ALGO = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7
 
 # Product schema/seed version. Bump to force reseed on schema changes.
-SEED_VERSION = 11
+SEED_VERSION = 13
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -754,7 +754,8 @@ _DEFAULT_CUTVEG_IMG = "https://images.unsplash.com/photo-1598295309854-cfa581900
 def _build_cutveg_products():
     items = []
     for sku, name, local_name, cuts in CUTVEG_CATALOG:
-        img = _CUTVEG_IMAGE_BY_NAME.get(name.lower(), _DEFAULT_CUTVEG_IMG)
+        photos = _photos_for(name) if "_photos_for" in globals() else []
+        img = photos[0] if photos else _CUTVEG_IMAGE_BY_NAME.get(name.lower(), _DEFAULT_CUTVEG_IMG)
         items.append({
             "sku": sku,
             "name": name,
@@ -764,6 +765,7 @@ def _build_cutveg_products():
             "price": 59.0,
             "unit": "250g",
             "image": img,
+            "gallery": photos,
             "stock": 50,
             "tags": ["prep-ready"],
             "description": f"Freshly cut {name.lower()} ({local_name}). Choose your preferred cut: {', '.join(cuts)}.",
@@ -776,7 +778,8 @@ def _build_cutveg_products():
 SEED_PRODUCTS.extend(_build_cutveg_products())
 
 
-# Whole vegetables & fruits (from user's "Whole veggies and fruits" file — first sheet)
+# ============================================================================
+# WHOLE VEGETABLES & FRUITS CATALOG
 WHOLE_CATALOG = [
     # Vegetables
     ("WHLAMT", "Amaranth", "Rajgira / Lal Math"), ("WHLASH", "Ash Gourd", "Petha / Kohla"),
@@ -925,7 +928,11 @@ _NAME_ALIASES = {
     "beetroot": ["beetw"],
     "brinjal bharata": ["brinjalbharata"],
     "sweet potato": ["sweetpotatoes"],
-    "sweet lemon": ["sweetlemon"],
+    "sweet lemon": ["sweetlemon", "sweetlime"],
+    "lady's finger": ["ladyfinger", "ladysfinger"],
+    "french beans": ["frenchbeans"],
+    "cowpea beans": ["cowpea"],
+    "lemon grass": ["lemongrass"],
     "sambar onion": ["sambharonions"],
     "onion": ["redonion"],
     "capsicum": ["capsicumgreen"],
@@ -938,6 +945,9 @@ _NAME_ALIASES = {
     "mint leaves": ["mintleaves"],
     "fenugreek": ["fenugreekleaves"],
     "coconut": ["coconutwhole", "tendercoconut"],
+    "chilli": ["chilly", "greenchilly"],
+    "green chilli": ["chilly", "greenchilly"],
+    "cluster bean": ["clusterbean", "clusterbeans"],
     # Ready-mix
     "gujarati panchkutiyu shaak mix": ["gujpanchkutiyumix"],
     "gujarati undhiyu mix": ["gujundhiyumix"],
@@ -982,10 +992,11 @@ for sku, name, local in WHOLE_CATALOG:
     })
 
 for sku, name, local, cuts in CUTFRUIT_CATALOG:
-    img = _FRUIT_IMAGES.get(name.lower(), "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80")
+    photos = _photos_for(name)
+    img = photos[0] if photos else _FRUIT_IMAGES.get(name.lower(), "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&q=80")
     SEED_PRODUCTS.append({
         "sku": sku, "name": name, "local_name": local, "category": "cut-fruit", "cut_type": cuts[0],
-        "price": 129.0, "unit": "250g", "image": img, "stock": 30, "tags": ["ready-to-eat"],
+        "price": 129.0, "unit": "250g", "image": img, "gallery": photos, "stock": 30, "tags": ["ready-to-eat"],
         "description": f"Fresh pre-cut {name.lower()} ({local}). Choose your cut: {', '.join(cuts)}.",
         "available_cuts": cuts, "available_weights": ["250g", "500g"],
     })
@@ -1000,6 +1011,15 @@ for sku, name, ingredients in READYMIX_CATALOG:
         "description": f"{name} — pre-cut & portioned. Includes: {ingredients}.",
         "available_cuts": ["mix"], "available_weights": ["300g", "500g"],
     })
+
+
+# After _photos_for is defined, backfill cut-veg entries with real photos where available.
+for _p in SEED_PRODUCTS:
+    if _p.get("category") == "cut-veg":
+        _photos = _photos_for(_p["name"])
+        if _photos:
+            _p["image"] = _photos[0]
+            _p["gallery"] = _photos
 
 SEED_PINCODES = [
     {"pincode": "560001", "area": "Bengaluru Central", "delivery_fee": 0, "eta_hours": 2},

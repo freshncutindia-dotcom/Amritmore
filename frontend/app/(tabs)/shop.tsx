@@ -51,7 +51,7 @@ export default function Shop() {
   const catTabs = useMemo(() => [{ id: "all", label: "All" }, ...CATEGORIES.map((c) => ({ id: c.id, label: c.label }))], []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
+    <View style={{ flex: 1, backgroundColor: "transparent" }}>
       {/* Sticky header */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.titleRow}>

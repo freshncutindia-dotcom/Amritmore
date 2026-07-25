@@ -24,7 +24,7 @@ export default function Profile() {
       ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
+    <View style={{ flex: 1, backgroundColor: "transparent" }}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.title}>Profile</Text>
       </View>
