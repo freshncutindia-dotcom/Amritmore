@@ -100,12 +100,12 @@ function SideDrawer({ visible, onClose, onFullyClosed }: { visible: boolean; onC
         {/* Drawer */}
         <Animated.View style={[styles.drawer, drawerStyle]}>
           {Platform.OS === "ios" ? (
-            <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFillObject} />
+            <BlurView intensity={40} tint="light" style={StyleSheet.absoluteFillObject} />
           ) : (
-            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(253,251,247,0.94)" }]} />
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(253,251,247,0.72)" }]} />
           )}
           <LinearGradient
-            colors={["rgba(232,243,230,0.55)", "rgba(253,251,247,0.35)"]}
+            colors={["rgba(232,243,230,0.30)", "rgba(253,251,247,0.20)"]}
             style={StyleSheet.absoluteFillObject}
           />
 

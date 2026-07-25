@@ -143,7 +143,6 @@ export default function Home() {
             </Pressable>
           </View>
           <Image source={require("../../assets/images/logo.webp")} style={styles.brandLogo} contentFit="contain" />
-          <Text style={styles.brandGreet}>{user?.name ? `Hi ${user.name.split(" ")[0]}, ` : ""}Farm-fresh, minutes away.</Text>
         </View>
 
         {/* Horizontal promo/video banner slot */}
@@ -343,7 +342,7 @@ const styles = StyleSheet.create({
   brandMenuBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface2, ...theme.shadow.sm },
   locPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.colors.brandTint, paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill },
   locTxt: { fontSize: 11, fontWeight: "600", color: theme.colors.brand },
-  brandLogo: { width: 220, height: 84 },
+  brandLogo: { width: 300, height: 130 },
   brandGreet: { fontSize: 12, color: theme.colors.onSurfaceMuted, marginTop: -6, textAlign: "center" },
 
   videoBanner: { height: 140, marginHorizontal: theme.spacing.lg, marginTop: theme.spacing.md, borderRadius: theme.radius.lg, overflow: "hidden", ...theme.shadow.md },

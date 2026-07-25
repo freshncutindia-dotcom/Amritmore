@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
 
@@ -32,7 +33,7 @@ JWT_ALGO = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7
 
 # Product schema/seed version. Bump to force reseed on schema changes.
-SEED_VERSION = 9
+SEED_VERSION = 11
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -103,6 +104,7 @@ class ProductIn(BaseModel):
     recipes: List[Recipe] = []
     sku: Optional[str] = None
     local_name: Optional[str] = None
+    gallery: List[str] = []
 
 
 class Product(ProductIn):
@@ -594,6 +596,11 @@ async def cancel_subscription(sub_id: str, user=Depends(get_current_user)):
 
 app.include_router(api)
 
+# Serve product photos uploaded to /app/backend/static/
+_STATIC_DIR = ROOT_DIR / "static"
+_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/api/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
 
 # ============== SEED DATA ==============
 # Each product represents ONE vegetable/fruit with configurable weight & cut choices.
@@ -880,12 +887,96 @@ def _pick_readymix_img(name: str) -> str:
     return "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600&q=80"
 
 
+# ---- Match uploaded product photos in /app/backend/static/products ---------
+import re as _re
+
+BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "https://produce-express-12.preview.emergentagent.com")
+
+
+def _slug(s: str) -> str:
+    return _re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def _static_url(filename: str) -> str:
+    return f"{BACKEND_BASE_URL}/api/static/products/{filename}"
+
+
+def _scan_product_photos() -> Dict[str, List[str]]:
+    """Return {slug: [filename,...]} for every file in /app/backend/static/products."""
+    result: Dict[str, List[str]] = {}
+    products_dir = _STATIC_DIR / "products"
+    if not products_dir.exists():
+        return result
+    for f in sorted(products_dir.iterdir()):
+        if f.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+            continue
+        name_no_ext = _re.sub(r"\s*\(?\d+\)?$", "", f.stem).strip()
+        for token in [name_no_ext, name_no_ext.replace("-", " ").replace("_", " ")]:
+            result.setdefault(_slug(token), []).append(f.name)
+    return result
+
+
+_PHOTO_INDEX: Dict[str, List[str]] = _scan_product_photos()
+
+# Extra alias mapping: product name → alternative filename slugs to search for
+_NAME_ALIASES = {
+    "colocasia": ["arvi"],
+    "gooseberry": ["awalaw", "amla"],
+    "beetroot": ["beetw"],
+    "brinjal bharata": ["brinjalbharata"],
+    "sweet potato": ["sweetpotatoes"],
+    "sweet lemon": ["sweetlemon"],
+    "sambar onion": ["sambharonions"],
+    "onion": ["redonion"],
+    "capsicum": ["capsicumgreen"],
+    "yam": ["yamsuran"],
+    "pomegranate": ["pomegranatew"],
+    "baby corn": ["babycornwhitebackground", "organicbabycorn"],
+    "coriander": ["corianderleaves", "organiccoriander"],
+    "curry leaves": ["curryleaves"],
+    "dill leaves": ["dillleaves"],
+    "mint leaves": ["mintleaves"],
+    "fenugreek": ["fenugreekleaves"],
+    "coconut": ["coconutwhole", "tendercoconut"],
+    # Ready-mix
+    "gujarati panchkutiyu shaak mix": ["gujpanchkutiyumix"],
+    "gujarati undhiyu mix": ["gujundhiyumix"],
+    "jain mix vegetables": ["jainmixveg"],
+    "jain pav bhaji mix": ["jainpavbhajimix"],
+    "jain / handvo mix": ["jainhandvomix", "jainhandavomix"],
+    "manchow soup-mix": ["manchawsoupmix"],
+    "misal-pav mix": ["misalpavmix"],
+    "mix vegetables": ["mixvegetables"],
+    "mix veggies to boil / steam": ["veggiestoboil"],
+    "pav bhaji mix vegetables": ["regpavbhajimix"],
+    "pulav ready mix": ["pulavmix"],
+    "raita mix vegetables": ["raitamix"],
+    "regular khichadi mix": ["regularkhichadimix"],
+    "regular vegetable biryani mix": ["vegbiryanimix"],
+    "sambhar mix": ["sambharmix"],
+    "sweet corn soup-mix": ["sweetcornsoup"],
+    "vegetable soup-mix": ["vegsoupmix"],
+}
+
+
+def _photos_for(name: str) -> List[str]:
+    slug = _slug(name)
+    files = _PHOTO_INDEX.get(slug, [])
+    if not files:
+        for alias in _NAME_ALIASES.get(name.lower(), []):
+            files = _PHOTO_INDEX.get(_slug(alias), [])
+            if files:
+                break
+    return [_static_url(f) for f in files]
+
+
 for sku, name, local in WHOLE_CATALOG:
     ln = name.lower()
-    img = _FRUIT_IMAGES.get(ln) or _CUTVEG_IMAGE_BY_NAME.get(ln, _WHOLE_DEFAULT_IMG)
+    photos = _photos_for(name)
+    img = photos[0] if photos else (_FRUIT_IMAGES.get(ln) or _CUTVEG_IMAGE_BY_NAME.get(ln, _WHOLE_DEFAULT_IMG))
     SEED_PRODUCTS.append({
         "sku": sku, "name": name, "local_name": local, "category": "whole", "cut_type": "whole",
-        "price": 49.0, "unit": "500g", "image": img, "stock": 60, "tags": ["fresh"],
+        "price": 49.0, "unit": "500g", "image": img, "gallery": photos, "stock": 60, "tags": ["fresh"],
         "description": f"Fresh whole {name.lower()} ({local}) — farm to your kitchen.",
         "available_cuts": ["whole"], "available_weights": ["250g", "500g", "1kg"],
     })
@@ -900,9 +991,11 @@ for sku, name, local, cuts in CUTFRUIT_CATALOG:
     })
 
 for sku, name, ingredients in READYMIX_CATALOG:
+    photos = _photos_for(name)
+    img = photos[0] if photos else _pick_readymix_img(name)
     SEED_PRODUCTS.append({
         "sku": sku, "name": name, "local_name": ingredients, "category": "ready-mix", "cut_type": "mix",
-        "price": 149.0, "unit": "300g", "image": _pick_readymix_img(name), "stock": 25,
+        "price": 149.0, "unit": "300g", "image": img, "gallery": photos, "stock": 25,
         "tags": ["quick-meal", "ready-to-cook"],
         "description": f"{name} — pre-cut & portioned. Includes: {ingredients}.",
         "available_cuts": ["mix"], "available_weights": ["300g", "500g"],

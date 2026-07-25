@@ -38,6 +38,7 @@ type Product = {
   available_weights: string[];
   cut_images: Record<string, string>;
   recipes: Recipe[];
+  gallery?: string[];
 };
 
 function weightToMultiplier(unit: string, base: string): number {
@@ -142,9 +143,22 @@ export default function ProductDetail() {
       <ActivityIndicator color={theme.colors.brand} />
     </View>
   );
+  const [galleryIdx, setGalleryIdx] = useState(0);
+  const gallery = product?.gallery && product.gallery.length > 0 ? product.gallery : [];
+
+  useEffect(() => {
+    if (gallery.length < 2) return;
+    const t = setInterval(() => {
+      setGalleryIdx((i) => (i + 1) % gallery.length);
+    }, 3000);
+    return () => clearInterval(t);
+  }, [gallery.length]);
+
   if (!product) return null;
 
-  const heroImage = (product.cut_images && product.cut_images[cutType]) || product.image;
+  const heroImage = gallery.length > 0
+    ? gallery[galleryIdx % gallery.length]
+    : (product.cut_images && product.cut_images[cutType]) || product.image;
 
   const mult = weightToMultiplier(unit, product.unit);
   const displayPrice = Math.round(product.price * mult);
@@ -169,8 +183,15 @@ export default function ProductDetail() {
     <View style={{ flex: 1, backgroundColor: theme.colors.surface }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 200 }} showsVerticalScrollIndicator={false}>
         <View style={styles.imgWrap}>
-          <Image source={{ uri: heroImage }} style={styles.img} contentFit="cover" transition={250} />
+          <Image source={{ uri: heroImage }} style={styles.img} contentFit="cover" transition={400} />
           <LinearGradient colors={["rgba(0,0,0,0.35)", "transparent"]} style={styles.imgScrim} />
+          {gallery.length > 1 && (
+            <View style={styles.dotsRow}>
+              {gallery.map((_, i) => (
+                <View key={i} style={[styles.dot, i === galleryIdx && styles.dotActive]} />
+              ))}
+            </View>
+          )}
           <Pressable testID="back-btn" onPress={() => router.back()} style={[styles.backBtn, { top: insets.top + 12 }]}>
             <Ionicons name="chevron-back" size={22} color={theme.colors.onSurface} />
           </Pressable>
@@ -286,6 +307,9 @@ const styles = StyleSheet.create({
   imgWrap: { width: "100%", aspectRatio: 1, position: "relative" },
   img: { width: "100%", height: "100%" },
   imgScrim: { position: "absolute", top: 0, left: 0, right: 0, height: 120 },
+  dotsRow: { position: "absolute", bottom: 12, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 6 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.5)" },
+  dotActive: { backgroundColor: "#fff", width: 18 },
   backBtn: { position: "absolute", left: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" },
   cutBadge: { position: "absolute", right: 16, backgroundColor: theme.colors.brand, paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radius.pill },
   cutBadgeTxt: { color: theme.colors.onBrand, fontWeight: "700", fontSize: 12, textTransform: "capitalize" },
