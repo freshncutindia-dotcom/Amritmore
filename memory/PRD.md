@@ -1,32 +1,38 @@
 # FreshCuts — Farm-to-door Ecommerce Mobile App
 
 ## Vision
-A premium, editorial-styled Expo mobile app for ordering **whole and pre-cut vegetables & fruits** and **ready-to-cook mixes**, with pin-code bound delivery, cool floating interactions, and gesture-first UX.
+A premium, editorial-styled Expo mobile app for ordering **whole and pre-cut vegetables & fruits** and **ready-to-cook mixes**, with pin-code bound delivery, subscribe & save weekly boxes, cool floating interactions, and gesture-first UX.
 
-## Categories (v3)
+## Categories (v5)
 1. **Pre-cut Veggies** — one product per vegetable; user picks a cut (sliced, diced, shredded, batonnet, grated, julienne, cubed) and a weight (250g / 500g / 1kg).
 2. **Pre-cut Fruits** — mango, pineapple, watermelon, papaya, mixed bowl — with cut + weight tabs.
 3. **Whole Vegetables & Fruits** — sold whole; only Weight tab (no cut chooser).
-4. **Ready-to-cook Veggie Mixes** — Stir-fry, Biryani, Soup, Curry, Salad, Pav Bhaji.
+4. **Ready-to-cook Veggie Mixes** — Stir-fry, Biryani, Soup, Curry, Salad, Pav Bhaji — each with a recipe suggestion.
 
 ## Key Screens
-- **Home** — Hero, category tiles (Pre-cut Veggies / Fruits / Whole / Ready-mix), fresh picks carousel, ready-to-cook rail, floating cart FAB.
-- **Shop** — sticky header with search + horizontally scrolling category chips + cut-type chips + 2-column product grid.
-- **Product Detail** — hero image, weight tab (per-weight price), cut-type chips (only for pre-cut categories), quantity stepper, sticky Add-to-basket CTA.
+- **Home** — Hero with hamburger menu, category tiles, **Subscribe & Save promo card**, fresh picks carousel, ready-to-cook rail, floating cart FAB.
+- **Shop** — sticky header with hamburger + search + horizontally scrolling category chips + cut-type chips + 2-column product grid.
+- **Product Detail** — hero image **that swaps when cut chip changes** (for Onions/Potatoes/Carrots/Cabbage/Bell Peppers/Mango/Pineapple), weight tab with per-weight price, cut-type chips (only for pre-cut), quantity stepper, **recipe suggestion cards for ready-mix products** (expandable ingredients + step-by-step instructions), sticky Add-to-basket CTA.
+- **Subscribe & Save** — 3 curated boxes (Essentials ₹599, Mixed ₹999, Premium ₹1499), weekly/bi-weekly frequency, delivery day selector, address form.
 - **Cart** — swipe-to-delete gesture rows, pincode serviceability check, animated total, sticky checkout CTA.
 - **Checkout** — address + phone + payment method (COD / Stripe) + order summary + success screen.
 - **Orders** — order history with status pill and thumbnails.
 - **Auth** — email + password JWT (register/login).
 - **Admin Panel** — add/delete products, add/delete pincodes.
 
-## Delightful details (as requested — "cool floating gestures & animations")
-- Spring-scaled cart badge on add.
-- Fly-to-cart haptic + bouncy FAB scale on any addToCart.
-- Swipe-left-to-delete cart row using `react-native-gesture-handler` + Reanimated.
-- Staggered `FadeInDown` entrances across category tiles, grid cards, and lists.
+## Sidebar Drawer (transparent glassmorphic)
+- Slides in from the left with spring animation and semi-transparent scrim.
+- BlurView / translucent surface backing → shows underlying screen through the drawer.
+- Contents: FreshCuts brand + close btn, user/guest card, main menu (Home, Shop, **Subscribe & Save w/ NEW badge**, My Basket, My Orders, Profile, Admin if admin), Categories quick-nav, Sign-out.
+
+## Delightful details
+- Spring-scaled cart badge on add, fly-to-cart haptic, bouncy FAB.
+- Swipe-left-to-delete cart row.
+- Staggered `FadeInDown` entrances.
 - Press-in `withSpring(0.97)` scale on product cards.
-- Confirmation success screen with animated check circle.
-- Reanimated pull-to-refresh with brand-colored tint.
+- Hero image transition (`expo-image`) on cut swap.
+- Reanimated pull-to-refresh.
+- Glass sidebar drawer with spring slide-in.
 
 ## Backend
 - **FastAPI** + Motor + JWT auth + bcrypt.
@@ -35,21 +41,21 @@ A premium, editorial-styled Expo mobile app for ordering **whole and pre-cut veg
   - `POST /auth/register`, `/auth/login`, `GET /auth/me`
   - `GET /products` (filters: category, cut_type, q), `GET /products/{id}`, admin `POST` and `DELETE /products/{id}`
   - `GET /pincodes`, `GET /pincodes/check/{pin}`, admin `POST /pincodes`, admin `DELETE /pincodes/{pin}`
-  - `POST /orders` (auth; validates pincode), `GET /orders`, `GET /orders/{id}`
+  - `POST /orders`, `GET /orders`, `GET /orders/{id}`
   - `POST /payments/checkout`, `GET /payments/status/{session_id}`, `GET /payments/success`, `GET /payments/cancel`
-- Seed data: admin user, 33 products across 4 categories, 8 pincodes.
+  - **`GET /subscriptions/boxes`, `POST /subscriptions`, `GET /subscriptions`, `POST /subscriptions/{id}/pause`, `DELETE /subscriptions/{id}`**
+- Seed data: admin user, 33 products (with `cut_images` for select pre-cut items and `recipes` for all ready-mix items), 8 pincodes, 3 subscription boxes.
 
 ## Frontend
 - Expo SDK 54 + expo-router, TypeScript.
-- Tabs: Home, Shop, Cart, Profile.
+- Tabs: Home, Shop, Cart, Profile. Additional routes: `/product/[id]`, `/checkout`, `/orders`, `/admin`, `/subscribe`, `/auth`.
 - Custom theme (`/app/frontend/src/theme.ts`) with organic palette (green, terracotta, warm oat) — no purple/indigo.
-- `AsyncStorage` for token + local cart persistence (via `@react-native-async-storage/async-storage`).
-- Cool motion using `react-native-reanimated`, gestures via `react-native-gesture-handler`, blur via `expo-blur`, haptics via `expo-haptics`.
+- Drawer via `/app/frontend/src/components/SideDrawer.tsx` (Reanimated + BlurView).
+- `AsyncStorage` for token + local cart persistence.
 
 ## Test Credentials
 See `/app/memory/test_credentials.md`.
 
 ## Status
-- Backend: 30/30 tests passing (100%).
-- Stripe: working with emergentintegrations.
-- Frontend: home, shop, product detail (weight + cut tabs), cart (swipe delete + pincode), checkout, admin, orders — all functional.
+- Backend: 41/41 tests passing (100%).
+- Frontend: all screens functional, drawer overlay works, recipe expansion works, cut image swap works.
