@@ -10,6 +10,7 @@ from bcrypt import hashpw, gensalt, checkpw
 from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
 
@@ -269,6 +270,29 @@ async def require_admin(user=Depends(get_current_user)):
 @api.get("/")
 async def root():
     return {"message": "FreshCuts API is running", "version": "1.0"}
+
+
+PRODUCT_CSV_TEMPLATE = """name,category,available_cuts,available_weights,price,base_unit,description,image,tags
+Onion,cut-veg,sliced|diced|shredded|grated,250g|500g|1kg,59,250g,Peeled onion cut your way,,prep-ready
+Potato,cut-veg,cubed|sliced|batonnet|diced,250g|500g|1kg,55,500g,Peeled and cut potatoes,,ready-to-cook
+Carrot,cut-veg,batonnet|diced|julienne|grated,250g|500g,69,250g,Peeled carrots your way,,chef-cut
+Mango,cut-fruit,diced|sliced|cubed,250g|500g,199,250g,Sweet mango chilled & ready,,ready-to-eat
+Pineapple,cut-fruit,sliced|cubed|diced,250g|500g,129,500g,Golden pineapple cored & ready,,ready-to-eat
+Tomato,whole,whole,500g|1kg,45,500g,Sun-ripened plum tomatoes,,fresh|organic
+Alphonso Mango,whole,whole,500g|1kg,349,1kg,The king of mangoes,,seasonal|premium
+Baby Spinach,whole,whole,250g|500g,39,250g,Tender leafy greens tripled-washed,,leafy
+Stir-fry Mix,ready-mix,mix,300g|500g,149,300g,Bell peppers baby corn broccoli carrots wok-ready,,quick-meal
+Biryani Veggie Mix,ready-mix,mix,300g|500g,129,300g,Beans carrots cauliflower peas biryani-ready,,indian|quick-meal
+"""
+
+
+@api.get("/templates/products.csv")
+async def download_products_template():
+    return Response(
+        content=PRODUCT_CSV_TEMPLATE,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="freshcuts_products_template.csv"'},
+    )
 
 
 @api.post("/auth/register", response_model=TokenOut)
