@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional, Literal
 
 import jwt
-import stripe
+from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
 from bcrypt import hashpw, gensalt, checkpw
 from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Header
@@ -25,8 +25,6 @@ ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "sk_test_emergent")
 JWT_ALGO = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7
-
-stripe.api_key = STRIPE_API_KEY
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -312,7 +310,7 @@ async def get_order(order_id: str, user=Depends(get_current_user)):
     return Order(**doc)
 
 
-# --- Stripe Checkout ---
+# --- Stripe Checkout via emergentintegrations ---
 @api.post("/payments/checkout")
 async def create_checkout(body: CheckoutSessionIn, user=Depends(get_current_user)):
     order = await db.orders.find_one({"id": body.order_id, "user_email": user["email"]}, {"_id": 0})
@@ -321,39 +319,22 @@ async def create_checkout(body: CheckoutSessionIn, user=Depends(get_current_user
     if order.get("payment_status") == "paid":
         raise HTTPException(400, "Order already paid")
     try:
-        session = stripe.checkout.Session.create(
-            mode="payment",
-            payment_method_types=["card"],
-            line_items=[
-                {
-                    "quantity": item["quantity"],
-                    "price_data": {
-                        "currency": "inr",
-                        "unit_amount": int(round(item["price"] * 100)),
-                        "product_data": {"name": f"{item['name']} ({item['cut_type']}, {item['unit']})"},
-                    },
-                }
-                for item in order["items"]
-            ] + ([
-                {
-                    "quantity": 1,
-                    "price_data": {
-                        "currency": "inr",
-                        "unit_amount": int(round(order["delivery_fee"] * 100)),
-                        "product_data": {"name": "Delivery Fee"},
-                    },
-                }
-            ] if order.get("delivery_fee", 0) > 0 else []),
-            success_url=f"{body.origin_url}/checkout/success?order_id={body.order_id}&session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{body.origin_url}/checkout/cancel?order_id={body.order_id}",
+        webhook_url = f"{body.origin_url}/api/payments/webhook"
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        req = CheckoutSessionRequest(
+            amount=float(order["total"]),
+            currency="inr",
+            success_url=f"{body.origin_url}/api/payments/success?order_id={body.order_id}&session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{body.origin_url}/api/payments/cancel?order_id={body.order_id}",
             metadata={"order_id": body.order_id, "user_email": user["email"]},
         )
+        session = await stripe_checkout.create_checkout_session(req)
         await db.orders.update_one(
             {"id": body.order_id},
-            {"$set": {"stripe_session_id": session.id}},
+            {"$set": {"stripe_session_id": session.session_id}},
         )
-        return {"url": session.url, "session_id": session.id}
-    except stripe.StripeError as e:
+        return {"url": session.url, "session_id": session.session_id}
+    except Exception as e:
         logger.exception("Stripe error")
         raise HTTPException(500, f"Stripe error: {str(e)}")
 
@@ -361,17 +342,18 @@ async def create_checkout(body: CheckoutSessionIn, user=Depends(get_current_user
 @api.get("/payments/status/{session_id}")
 async def payment_status(session_id: str, user=Depends(get_current_user)):
     try:
-        session = stripe.checkout.Session.retrieve(session_id)
-    except stripe.StripeError as e:
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY)
+        status = await stripe_checkout.get_checkout_status(session_id)
+    except Exception as e:
         raise HTTPException(500, f"Stripe error: {str(e)}")
-    paid = session.payment_status == "paid"
-    order_id = session.metadata.get("order_id") if session.metadata else None
+    paid = status.payment_status == "paid"
+    order_id = status.metadata.get("order_id") if status.metadata else None
     if paid and order_id:
         await db.orders.update_one(
             {"id": order_id},
             {"$set": {"payment_status": "paid", "status": "confirmed"}},
         )
-    return {"paid": paid, "status": session.payment_status, "order_id": order_id}
+    return {"paid": paid, "status": status.payment_status, "order_id": order_id}
 
 
 app.include_router(api)
