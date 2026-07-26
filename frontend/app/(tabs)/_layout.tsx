@@ -36,6 +36,8 @@ export default function TabsLayout() {
       sceneContainerStyle={{ backgroundColor: "transparent" }}
       screenOptions={{
         headerShown: false,
+        freezeOnBlur: true,
+        lazy: true,
         tabBarActiveTintColor: "#1F2A3A",
         tabBarInactiveTintColor: "rgba(31,42,58,0.55)",
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600", marginTop: -2 },
