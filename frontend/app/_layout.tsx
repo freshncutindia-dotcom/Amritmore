@@ -31,15 +31,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AppProvider>
           <DrawerProvider>
-            <View style={{ flex: 1, backgroundColor: "#F2F8FE" }}>
+            <View style={{ flex: 1, backgroundColor: "#EAF4FE" }}>
               <BackgroundAurora />
-              <Image
-                source={require("../assets/images/bg.jpg")}
-                style={[StyleSheet.absoluteFillObject, { opacity: 0.05 }]}
-                contentFit="cover"
-                pointerEvents="none"
-              />
-              <StatusBar barStyle="dark-content" backgroundColor="#F2F8FE" />
+              <StatusBar barStyle="dark-content" backgroundColor="#EAF4FE" />
               <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="auth" />

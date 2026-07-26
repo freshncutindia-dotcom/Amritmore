@@ -33,6 +33,7 @@ function CartBadge() {
 export default function TabsLayout() {
   return (
     <Tabs
+      sceneContainerStyle={{ backgroundColor: "transparent" }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#1F2A3A",

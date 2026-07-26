@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
   heroIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.2)", borderWidth: 1, borderColor: "rgba(255,255,255,0.35)" },
   heroTitle: { color: "#fff", fontSize: 26, fontWeight: "700", lineHeight: 32, marginBottom: 12 },
 
-  brandHeader: { backgroundColor: theme.colors.surface, paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm, alignItems: "center" },
+  brandHeader: { backgroundColor: "transparent", paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm, alignItems: "center" },
   brandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: theme.spacing.xs },
   brandMenuBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface2, ...theme.shadow.sm },
   locPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.colors.brandTint, paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill },

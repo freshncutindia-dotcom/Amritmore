@@ -179,11 +179,11 @@ function GridCard({ product, index, onOpen, onAdd }: { product: Product; index: 
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: "transparent",
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: "rgba(255,255,255,0.6)",
   },
   title: { fontSize: 28, fontWeight: "700", color: theme.colors.onSurface },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },

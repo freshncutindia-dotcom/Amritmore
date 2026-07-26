@@ -1,0 +1,44 @@
+{
+  "summary": "Regression verification after BackgroundAurora revert to static sky-blue LinearGradient and product/[id].tsx Rules-of-Hooks fix. Backend: 164 products live (cut-veg:65, whole:73, cut-fruit:8, ready-mix:18, organic:0) via public URL; GET /products and GET /products/{id} return 200; category=organic returns [] (accepted, no data). Pytest 84/85 pass (1 flaky failure caused by parallel worker creating a product while another counted whole; test passes when run alone). Frontend (mobile 390x844 viewport): Home renders FreshncuT logo, 5-item category vector strip incl. Organic, hero video banner playing 'Farm-fresh, cut on demand', 'Shop by category' horizontal cards, Subscribe & Save promo. Shop tab shows 54 grid cards, category chips incl. Organic (empty state as expected since backend has 0 organic products), cut-type chips. Tapping a product opens /product/[id].tsx cleanly — NO 'Rules of Hooks' error in console or page errors, weight/cut/qty/Add-to-basket render correctly. Cart tab shows 'My Basket / Your basket is empty'. Profile tab shows Welcome guest + stats. Bottom tab bar renders with dark icons on translucent white background. Zero page errors, zero hook errors, only one benign React '%s' prop warning (library-level, non-blocking).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/products?category=organic", "issue": "Returns [] — ProductIn enum now accepts 'organic' but 0 seed products have category=organic. Frontend advertises 'Organic Veggies & Fruits' in CATEGORIES and the Shop 'Organic' chip; users tapping it see the empty state. Consider seeding a small organic sub-catalog (e.g., 8-12 organic tagged items) or removing the Organic entry from CATEGORIES until data exists."},
+      {"endpoint": "pytest test_v9_catalog.py::test_category_breakdown", "issue": "Intermittent race: fails under -n auto (xdist) because another test (test_freshcuts_api create_product) inserts a 'whole' product concurrently, making count 74 instead of 73. Runs green in isolation. Recommend making CRUD tests category!='whole' or delete created products in a session-scoped finalizer."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Home", "issues": ["Bottom translucent tab bar sits over the last row of the Subscribe & Save card and partially obscures the 'Set up your box' CTA (visible in home screenshot). Consider adding ~24px extra paddingBottom to the ScrollView contentContainer (currently 140 — looks fine for cards below but marginally clips this promo)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_freshcuts_api.py",
+    "/app/backend/tests/test_cutveg_catalog.py",
+    "/app/backend/tests/test_csv_template.py",
+    "/app/backend/tests/test_v9_catalog.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: seed a small 'organic' catalog OR temporarily hide the Organic category from frontend CATEGORIES until data exists (users currently see empty state).",
+    "Optional: fix xdist race in test_v9_catalog.py::test_category_breakdown by either (a) filtering out TEST_ prefixed products, or (b) running test_v9_catalog serially via pytest-xdist scope."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1072 lines with all seed catalogs (CUTVEG_CATALOG, WHOLE_CATALOG, CUTFRUIT_CATALOG, READYMIX_CATALOG) + image URL maps inline. Extract into backend/seed_data/ package for maintainability.",
+    "Frontend CATEGORIES declares 'organic' but there is no data path for it; either seed products or gate the chip/tile on non-empty count from the API.",
+    "app/(tabs)/index.tsx contains a web-specific inline React.createElement('video', ...) branch (HeroVideo). Works but is fragile if Platform.OS === 'web' logic changes — consider extracting to a small HeroVideo.web.tsx / HeroVideo.native.tsx split for clarity."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "99% (84/85 with xdist; 85/85 sequentially)",
+    "frontend": "100% (Home, Shop, Product detail, Cart, Profile all render clean; no hook or red-screen errors)"
+  },
+  "seed_data_creation": "None. Read-only verification against v9 seeded catalog (164 products).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "App is stable post-BackgroundAurora revert (static sky-blue LinearGradient). Product detail Rules-of-Hooks fix verified — useState(galleryIdx) + gallery useMemo/useEffect are correctly placed above the loading early-return. Backend seed is 164 products (cut-veg:65, whole:73, cut-fruit:8, ready-mix:18, organic:0). Frontend CATEGORIES includes 'organic' but backend has zero organic products, so filtering by organic shows empty state (functional, no crash). All 4 tabs (Home/Shop/Cart/Profile) render; bottom tab bar uses translucent white background with dark #1F2A3A icons.",
+  "rca_of_issue": "N/A — post-revert regression verification. All items in the review checklist verified functional. Only observation: Organic chip shows empty state because no organic products are seeded; this is a data gap, not a bug."
+}
