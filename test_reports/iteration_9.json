@@ -1,0 +1,62 @@
+{
+  "summary": "Backend fully green (164 products, whole=73, cut-veg=65, cut-fruit=8, ready-mix=18; 84/85 pytest, single failure is parallel-race artifact between TestAdminCRUD create and TestV9CatalogSize::test_category_breakdown, passes cleanly when file is run alone). Product detail /product/[id] opens without hooks error, bg-hero <img> present in DOM. HOWEVER the two claimed fixes are NOT WORKING as described:\n\n(1) BackgroundAurora resizeMode='contain' — the background is STILL not fitted to the viewport. DOM inspection on 375x667 viewport shows the RN Image is rendered via a div with `background-size: contain` and `background-position: 50% 50%`, but that DIV has getBoundingClientRect w=1600, h=2000 (natural image dimensions), starting at top:0 left:0. The inner <img> preloader is opacity:0, zIndex:-1. So the pepper/basil/olive/chili composition is 'contain'ed within a 1600x2000 stage that overflows the 375x667 viewport, and only the TOP-LEFT ~375x667 slice of the composition is on-screen. Visually the aurora is nearly invisible on Home (obscured by content cards) and shows only a plain white/blue field elsewhere; the peppers/basil produce are NOT visible centered on the screen as intended. Root cause: the wrapper <View style={{flex:1, backgroundColor:'#EAF4FE'}}> in app/_layout.tsx (line 44) contains BackgroundAurora via StyleSheet.absoluteFill, but because that wrapper has flex:1 without a hard width/height and because RN Image on web computes intrinsic size from the natural asset (1600x2000) when its parent is unbounded, the whole BackgroundAurora subtree expands to 1600x2000 — so contain inside 1600x2000 = the whole image renders correctly, but you only see the top-left 375x667 slice. Fix cover→contain alone did not solve this; the parent needs a fixed viewport-sized bound (e.g. width:'100%', height:'100%' or position:absolute/inset:0 on the aurora root) so the image is contained to the *screen* not to its natural size.\n\n(2) Tab bleed-through is STILL present. freezeOnBlur:true keeps inactive tab STATE frozen but does NOT unmount or hide the DOM. On Cart tab, the entire Home tree paints simultaneously — DOM query confirms 'My Basket', '0 items', 'Your basket is empty', 'Browse fresh produce' AND 'Pre-cut Veggies', 'Pre-cut Fruits', 'Whole Veggies & Fruits', 'Organic Veggies & Fruits', 'Ready-to-cook Mixes', 'How we cut', 'Farm-fresh, cut on demand.', 'Shop Fresh', 'Shop by category', 'See all' are ALL visible and overlapping at the same y-positions. The 'Deliver to Bengaluru' DOM count dropped from 24 (iter_8) to 1 (because inactive tabs no longer re-render their pill), but the Home scene DOM is still painted underneath the Cart modal. Same visual bleed reproduces on Profile and Shop tabs. See fresh_cart.png (attached in /tmp) — you can clearly see the FreshncuT logo, category strip and video banner behind the Cart 'basket is empty' modal.\n\nRegression checklist:\n[x] App loads (no red screen, no JS errors — pageerror handler produced none)\n[FAIL] Home shows the FULL pepper/basil/olive/chili image centered — actually only the top-left corner is on-screen; the produce composition is NOT visible fitted to screen\n[OK-DOM] Home has ONE 'Deliver to Bengaluru' (count=1 on Home)\n[PARTIAL] Tab bar switches — buttons work, URL changes correctly (/shop, /cart, /profile), but visual bleed-through means all tabs paint simultaneously\n[FAIL] Background visible on Shop/Cart/Profile — img is in DOM but its render div is 1600x2000 offset so only tiny corner slice appears; user does not perceive the aurora\n[OK] Product detail /product/[id] opens, no hooks error, bg-hero present in DOM\n[OK] GET /api/products = 164\n[OK] GET /api/products/{id} = 200",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "backend/tests/test_v9_catalog.py::TestV9CatalogSize::test_category_breakdown", "issue": "Flaky under pytest-xdist parallel mode because TestAdminCRUD::test_admin_create_and_delete_product creates a product concurrently, bumping whole=73→74 during the read. Passes 20/20 when the file runs alone. Recommend either (a) marking category_breakdown as serial (@pytest.mark.serial) or (b) making the CRUD test isolate to a separate category so it does not skew the count."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "src/components/BackgroundAurora.tsx + app/_layout.tsx wrapper",
+        "issue": "CRITICAL — user's complaint 'background image only showing a small cropped part' is NOT fixed. Changing resizeMode from 'cover' to 'contain' alone is insufficient because BackgroundAurora's rendered div ends up sized 1600x2000 (natural image size) instead of 375x667 (viewport). Contain then fits the image inside 1600x2000, and only the top-left 375x667 slice is on-screen — so peppers/basil/olives/chili composition is not centered on screen. Fix: constrain the aurora root so its box == viewport. Options: (a) in BackgroundAurora.tsx replace <View style={StyleSheet.absoluteFill}> with <View style={{position:'absolute', top:0, left:0, right:0, bottom:0, width:'100%', height:'100%', overflow:'hidden'}}> and set the RN Image style to width:'100%', height:'100%' explicitly; (b) or wrap the aurora in the RootLayout inside a positioned container that has explicit width/height matching the window (useWindowDimensions()). Reference: /app/frontend/src/components/BackgroundAurora.tsx:21-25, /app/frontend/app/_layout.tsx:44-45.",
+        "testID": "n/a (BackgroundAurora has no testID; add one for future testing)",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "app/(tabs)/_layout.tsx",
+        "issue": "CRITICAL — Tab bleed-through STILL present after adding freezeOnBlur:true (line 39). DOM query on Cart tab confirms both Cart content (My Basket / 0 items / Your basket is empty / Browse fresh produce) AND full Home content (FreshncuT logo, Pre-cut Veggies/Fruits/Whole/Organic/Ready-to-cook Mixes strip, How we cut / Farm-fresh, cut on demand / Shop Fresh video banner, Shop by category header) are all painted on screen simultaneously. freezeOnBlur only pauses React re-renders on inactive tabs; it does not hide their DOM or set display:none. Correct fix: add `detachInactiveScreens: true` at the Tabs level, OR set `unmountOnBlur: true` per Tabs.Screen listener, OR give the sceneContainerStyle an opaque backgroundColor so inactive scenes are masked (but that would re-hide the aurora). Recommended: `detachInactiveScreens: true`. Reference: /app/frontend/app/(tabs)/_layout.tsx:36-54.",
+        "testID": "n/a",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Home",
+        "issues": [
+          "Even if the aurora were properly fitted, Home has dense content (logo card + 5-icon strip + video banner + 3-card category row + subscribe promo) that would still occlude ~85% of the background. Consider making the top of Home (above the video banner) more sparse so the peppers/basil aurora actually shows."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_freshcuts_api.py",
+    "/app/backend/tests/test_v9_catalog.py",
+    "/app/backend/tests/test_cutveg_catalog.py",
+    "/app/backend/tests/test_csv_template.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "1) Fix background sizing (root cause of user's original complaint): the BackgroundAurora wrapper is being expanded to 1600x2000 by the RN Image's intrinsic natural size. Constrain it — in /app/frontend/src/components/BackgroundAurora.tsx, wrap in a positioned container with explicit width/height (use useWindowDimensions()) or add `overflow:'hidden'` on the outer View and set the RN Image to `style={{width:'100%', height:'100%', position:'absolute'}}` so contain applies to the 375x667 viewport, not the natural 1600x2000.",
+    "2) Fix tab bleed-through (still severe on Cart / Profile / Shop): freezeOnBlur is not enough. In /app/frontend/app/(tabs)/_layout.tsx add `detachInactiveScreens: true` to <Tabs>, or `unmountOnBlur: true` inside each Tabs.Screen options, so inactive tab scenes are removed from the DOM. Confirm afterwards by running Playwright DOM query on Cart tab — the strings 'Farm-fresh, cut on demand.' and 'Shop by category' should NOT appear.",
+    "3) Isolate the flaky parallel pytest — mark TestV9CatalogSize::test_category_breakdown with a serial mark or move the AdminCRUD create/delete into a category outside 'whole' so the count assertion is stable under -n auto."
+  ],
+  "critical_code_review_comments": [
+    "BackgroundAurora.tsx line 15-18 paints a #F2F8FE base BEHIND the RN Image; combined with a 22% white veil ABOVE the image, the peppers/basil composition — even when properly sized — will be muted. Consider dropping the veil to 0.10-0.15 or removing the base color once sizing is fixed.",
+    "app/_layout.tsx line 44 hardcodes backgroundColor:'#EAF4FE' on the wrapper. That's fine as a fallback but if aurora sizing is fixed correctly this base will be invisible — remove or keep as a splash-loading color only.",
+    "app/(tabs)/_layout.tsx: `lazy: true` + `freezeOnBlur: true` are additive optimizations but neither hides painted DOM. For a translucent-scene design you MUST use `detachInactiveScreens:true` at the react-navigation Tabs Navigator level."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% functional (164 products, all critical endpoints 200; 1 flaky parallel test)",
+    "frontend": "40% — app loads and product detail works, but the two central claimed fixes (whole image visible + no bleed-through) are still not achieved"
+  },
+  "seed_data_creation": "None. Read-only verification.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two fixes still needed and orthogonal to each other:\n(A) BackgroundAurora sizing: img element opacity=0/zIndex=-1 (hidden preloader) is fine; the visible div has background-size:contain but its box is 1600x2000 anchored at top:0 left:0 — must be constrained to viewport. Verify by running: `document.querySelector('div[class*=r-backgroundSize-ehq7j7]').getBoundingClientRect()` and confirming w=375 h=667 (not w=1600 h=2000).\n(B) Tab bleed-through: on Cart tab, run `Array.from(document.querySelectorAll('*')).filter(e=>(e.textContent||'').includes('Farm-fresh, cut on demand.') && e.children.length===0).length` — must return 0 after fix (currently returns 1). Also 'Shop by category' should be 0 while on Cart.\nBackend is stable and needs no further changes. Product detail already works.",
+  "rca_of_issue": "User complaint 'background image only showing a small cropped part' has two compounding causes:\n1) resizeMode='cover' would crop-fill, so the fix to 'contain' was directionally correct.\n2) BUT the RN Image on react-native-web derives its box from either (a) the style width/height or (b) the intrinsic image size when the parent is not a positioned/sized container. Because <View style={{flex:1}}> in RootLayout at line 44 creates a positioned ancestor of ambiguous size for absolute descendants on web, the RN Image's underlying wrapper div expands to the natural 1600x2000 asset dimensions. Contain then fits perfectly inside 1600x2000, but only the top-left 375x667 pixels are shown in the viewport. So the user still sees a 'small cropped part' — just a different crop than before.\nMitigation: constrain BackgroundAurora root to viewport dimensions (useWindowDimensions() or width:100vw/height:100vh via inline style on web) AND explicitly set RN Image style width:'100%' height:'100%'. Then contain will fit within 375x667 and the WHOLE image will be visible centered with sky-blue letterbox top/bottom (image is 1600x2000 = 4:5 portrait, viewport is 375x667 ≈ 9:16 = 9:16 portrait which is taller/narrower than 4:5, so image will be letterboxed left/right slightly). Combined with the tab bleed-through fix, the peppers/basil aurora will be visible across all four tabs as intended."
+}
