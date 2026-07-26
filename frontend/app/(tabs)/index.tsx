@@ -15,6 +15,7 @@ import { theme, CATEGORIES } from "@/src/theme";
 import { apiFetch } from "@/src/api";
 import { useApp } from "@/src/store";
 import { useDrawer } from "@/src/components/SideDrawer";
+import { withFocusGate } from "@/src/components/withFocusGate";
 
 type Product = {
   id: string; name: string; price: number; unit: string; image: string;
@@ -89,7 +90,8 @@ function NativeHeroVideo() {
   );
 }
 
-export default function Home() {
+
+function Home() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, cartCount, addToCart } = useApp();
@@ -298,6 +300,7 @@ export default function Home() {
     </View>
   );
 }
+export default withFocusGate(Home);
 
 function ProductCardBig({ product, onOpen, onAdd }: { product: Product; onOpen: () => void; onAdd: () => void }) {
   const scale = useSharedValue(1);

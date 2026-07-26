@@ -1,0 +1,41 @@
+{
+  "summary": "BOTH FIXES CONFIRMED WORKING END-TO-END. (1) BackgroundAurora — DOM inspection at 375x667 shows the bg-hero img is now rendered at exactly viewport size (w=375, h=667, x=0, y=0) on Home, Shop, Cart, Profile AND /product/[id]. Screenshots confirm the whole pepper/basil/olive/chili composition is visible centered on every screen. useWindowDimensions() + explicit width/height on both container View and RN Image resolved the intrinsic-1600x2000 overflow reported in iteration_9. (2) withFocusGate HOC — tab bleed-through is fully eliminated. On Cart tab, 'Farm-fresh, cut on demand'=0, 'Shop by category'=0, 'Deliver to Bengaluru'=0, 'My Basket'=1. On Profile tab, 'Farm-fresh'=0, 'Shop by category'=0, 'My Basket'=0, 'Profile' label appears (2 hits = 1 header + 1 tab-bar label, expected). On Shop tab, 'Farm-fresh'=0, cat-chip-all present, aurora visible. On Home tab, 'Deliver to Bengaluru'=1, 'Farm-fresh'=1 (only own content).\n\nProduct detail /product/[id] opens without hooks error, bg-hero present at 375x667, no red-screen indicators, no 'Rendered fewer hooks' string. Backend green: GET /api/products = 164, GET /api/products?category=organic = 0 (as expected, no seed).\n\nRegression checklist:\n[OK] Home shows FULL pepper/basil/olive/chili image centered on screen (screenshot verified)\n[OK] 'Deliver to Bengaluru' appears exactly once on Home, zero on other tabs\n[OK] 'Farm-fresh, cut on demand' appears once on Home, zero on Shop/Cart/Profile\n[OK] Cart tab clean — 'My Basket' visible, no Home elements bleed through\n[OK] Shop tab clean — category chips visible, no Home bleed\n[OK] Profile tab clean — profile UI, no Home elements\n[OK] Background image visible on all 4 tabs + product detail (viewport sized 375x667)\n[OK] Tapping product card opens /product/[id] cleanly, bg still visible\n[OK] Backend GET /api/products = 164\n[OK] Backend category=organic = 0 (no products seeded)\n\nMinor non-blocking console noise: react-native-web deprecation warnings for shadow* and props.pointerEvents (cosmetic); one React DOM warning about `defaultMuted` prop on <video> (from HeroVideo web branch, pre-existing, not related to this iteration).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_freshcuts_api.py",
+    "/app/backend/tests/test_v9_catalog.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/tmp/it10/home.png",
+    "/tmp/it10/shop.png",
+    "/tmp/it10/cart.png",
+    "/tmp/it10/profile.png",
+    "/tmp/it10/product.png"
+  ],
+  "action_items": [
+    "No action items — both requested fixes verified. If main agent wants to polish: (a) address the pre-existing `defaultMuted` DOM warning in app/(tabs)/index.tsx HeroVideo web branch by using `defaultMuted={true}` inline rather than as a string DOM attribute; (b) consider dropping the white veil rgba(255,255,255,0.22) in BackgroundAurora.tsx line 38 to something like 0.10 so the produce composition is more vivid (optional aesthetic tuning)."
+  ],
+  "critical_code_review_comments": [
+    "BackgroundAurora.tsx now correctly uses useWindowDimensions() and applies width/height to both the outer View and RN Image, so the image is bounded to viewport. Clean, minimal implementation.",
+    "withFocusGate.tsx is a small, idiomatic HOC using useIsFocused() from @react-navigation/native. Correctly returns null for inactive scenes, letting the shared aurora paint through. Applied consistently to all four tab default exports (index.tsx L303, shop.tsx L150, cart.tsx L153, profile.tsx L80).",
+    "Tabs layout keeps `detachInactiveScreens`, `freezeOnBlur`, `lazy`, `unmountOnBlur` — all four together plus withFocusGate is belt-and-suspenders; safe but note `unmountOnBlur` on Tabs.Screen options is technically a bottom-tab specific listener option and may log a warning in newer react-navigation versions. Not observed in this run."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (164 products, organic=0 as expected)",
+    "frontend": "100% (both fixes verified across all 4 tabs + product detail)"
+  },
+  "seed_data_creation": "None. Read-only verification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration_10 fully validates the iter_9 recommendations. Aurora is now viewport-bounded (verified via getBoundingClientRect w=375 h=667 on 375x667 viewport across Home/Shop/Cart/Profile/product-detail). Bleed-through eliminated via withFocusGate — Home-only strings ('Farm-fresh, cut on demand', 'Shop by category') return count=0 when on any non-Home tab. Backend catalog stable at 164 products; organic category intentionally empty. Nothing to retest.",
+  "rca_of_issue": "N/A — both bugs from iteration_9 are resolved. Root causes were correctly identified in iter_9: (1) RN Image on web derived intrinsic 1600x2000 sizing when parent was flex-only; fixed by explicit width/height via useWindowDimensions on both View and Image. (2) freezeOnBlur/detachInactiveScreens alone did not hide painted DOM under a transparent scene theme; fixed by short-circuiting render in each tab default export via useIsFocused()==false → return null."
+}

@@ -1,26 +1,34 @@
 import React from "react";
-import { StyleSheet, View, Image as RNImage } from "react-native";
+import { StyleSheet, View, Image as RNImage, useWindowDimensions } from "react-native";
 
 /**
  * App-wide background — user's uploaded pepper/basil hero image.
- * Fitted to screen (contain) and centered so the whole composition is visible.
+ * Fitted to the actual viewport (not the intrinsic image size) so the whole
+ * composition is centered and visible regardless of screen.
  * Pointer-events disabled so it never blocks touches.
  */
 const BG_IMG = require("../../assets/images/bg-hero.webp");
 
 export default function BackgroundAurora() {
+  const { width, height } = useWindowDimensions();
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View
+      pointerEvents="none"
+      style={[
+        StyleSheet.absoluteFill,
+        { width, height, overflow: "hidden" },
+      ]}
+    >
       {/* Soft light base behind the image (visible in letterbox areas) */}
       <View
         pointerEvents="none"
         style={[StyleSheet.absoluteFill, { backgroundColor: "#F2F8FE" }]}
       />
 
-      {/* Hero image — whole image visible, centered, fitted to screen */}
+      {/* Hero image — constrained to viewport, whole image centered */}
       <RNImage
         source={BG_IMG}
-        style={StyleSheet.absoluteFillObject}
+        style={{ position: "absolute", top: 0, left: 0, width, height }}
         resizeMode="contain"
       />
 

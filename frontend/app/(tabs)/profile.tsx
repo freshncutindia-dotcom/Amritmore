@@ -5,8 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/src/theme";
 import { useApp } from "@/src/store";
+import { withFocusGate } from "@/src/components/withFocusGate";
 
-export default function Profile() {
+function Profile() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout, cartCount } = useApp();
@@ -76,6 +77,7 @@ export default function Profile() {
     </View>
   );
 }
+export default withFocusGate(Profile);
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: theme.spacing.lg, paddingBottom: 12 },

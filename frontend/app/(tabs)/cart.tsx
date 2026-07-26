@@ -11,8 +11,9 @@ import * as Haptics from "expo-haptics";
 import { theme } from "@/src/theme";
 import { apiFetch } from "@/src/api";
 import { useApp, CartItem } from "@/src/store";
+import { withFocusGate } from "@/src/components/withFocusGate";
 
-export default function CartScreen() {
+function CartScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { cart, updateQty, removeFromCart, cartTotal, cartCount, user } = useApp();
@@ -149,6 +150,7 @@ export default function CartScreen() {
     </View>
   );
 }
+export default withFocusGate(CartScreen);
 
 function SwipeRow({ item, index, onDelete, onInc, onDec }: { item: CartItem; index: number; onDelete: () => void; onInc: () => void; onDec: () => void }) {
   const tx = useSharedValue(0);

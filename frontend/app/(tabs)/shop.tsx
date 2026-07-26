@@ -12,6 +12,7 @@ import { apiFetch } from "@/src/api";
 import { useApp } from "@/src/store";
 import { FloatingCartFab } from "./index";
 import { useDrawer } from "@/src/components/SideDrawer";
+import { withFocusGate } from "@/src/components/withFocusGate";
 
 type Product = {
   id: string; name: string; local_name?: string; sku?: string; price: number; unit: string; image: string;
@@ -19,7 +20,7 @@ type Product = {
   available_cuts?: string[]; available_weights?: string[];
 };
 
-export default function Shop() {
+function Shop() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string }>();
@@ -146,6 +147,7 @@ export default function Shop() {
     </View>
   );
 }
+export default withFocusGate(Shop);
 
 function GridCard({ product, index, onOpen, onAdd }: { product: Product; index: number; onOpen: () => void; onAdd: () => void }) {
   const scale = useSharedValue(1);
