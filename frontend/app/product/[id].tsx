@@ -112,6 +112,7 @@ export default function ProductDetail() {
   const [cutType, setCutType] = useState<string>("");
   const [unit, setUnit] = useState<string>("");
   const [qty, setQty] = useState(1);
+  const [galleryIdx, setGalleryIdx] = useState(0);
 
   const btnScale = useSharedValue(1);
   const btnStyle = useAnimatedStyle(() => ({ transform: [{ scale: btnScale.value }] }));
@@ -126,6 +127,24 @@ export default function ProductDetail() {
       } finally { setLoading(false); }
     })();
   }, [id]);
+
+  const gallery = useMemo(
+    () => (product?.gallery && product.gallery.length > 0 ? product.gallery : []),
+    [product?.gallery]
+  );
+
+  useEffect(() => {
+    // Reset carousel index whenever the product (or its gallery) changes
+    setGalleryIdx(0);
+  }, [gallery]);
+
+  useEffect(() => {
+    if (gallery.length < 2) return;
+    const t = setInterval(() => {
+      setGalleryIdx((i) => (i + 1) % gallery.length);
+    }, 3000);
+    return () => clearInterval(t);
+  }, [gallery.length]);
 
   const showCutTab = useMemo(() => {
     if (!product) return false;
@@ -143,16 +162,6 @@ export default function ProductDetail() {
       <ActivityIndicator color={theme.colors.brand} />
     </View>
   );
-  const [galleryIdx, setGalleryIdx] = useState(0);
-  const gallery = product?.gallery && product.gallery.length > 0 ? product.gallery : [];
-
-  useEffect(() => {
-    if (gallery.length < 2) return;
-    const t = setInterval(() => {
-      setGalleryIdx((i) => (i + 1) % gallery.length);
-    }, 3000);
-    return () => clearInterval(t);
-  }, [gallery.length]);
 
   if (!product) return null;
 
