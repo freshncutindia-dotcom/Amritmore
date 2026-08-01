@@ -180,7 +180,7 @@ function Home() {
               <View style={styles.catQuickIcon}>
                 <Ionicons name={c.icon as any} size={18} color={theme.colors.brandDark} />
               </View>
-              <Text numberOfLines={2} style={styles.catQuickLbl}>{c.label}</Text>
+              <Text numberOfLines={2} style={styles.catQuickLbl}>{c.short}</Text>
             </Pressable>
           ))}
         </View>

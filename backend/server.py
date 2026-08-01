@@ -818,7 +818,13 @@ async def get_product(product_id: str):
 
 @api.post("/products", response_model=Product)
 async def create_product(body: ProductIn, _=Depends(require_admin)):
-    product = Product(**body.dict())
+    payload = body.dict()
+    # Enforce category rules: Whole & Organic use weight-only, cut='whole'
+    if payload["category"] in ("whole", "organic"):
+        payload["available_cuts"] = ["whole"]
+        payload["cut_type"] = "whole"
+        payload["available_weights"] = ["250g", "500g", "1kg"]
+    product = Product(**payload)
     doc = product.dict()
     doc["created_at"] = doc["created_at"].isoformat()
     await db.products.insert_one(doc)

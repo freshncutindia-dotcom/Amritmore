@@ -33,11 +33,11 @@ export const theme = {
 };
 
 export const CATEGORIES = [
-  { id: "cut-veg", label: "Pre-cut", emoji: "🔪", icon: "cut-outline", image: require("../assets/images/categories/cut-veg.webp") },
-  { id: "ready-mix", label: "Ready Mix", emoji: "🍲", icon: "restaurant-outline", image: require("../assets/images/categories/ready-mix.webp") },
-  { id: "organic", label: "Organic", emoji: "🌱", icon: "flower-outline", image: require("../assets/images/categories/organic.webp") },
-  { id: "whole", label: "Regular", emoji: "🥦", icon: "leaf-outline", image: require("../assets/images/categories/whole.webp") },
-  { id: "cut-fruit", label: "Fruits", emoji: "🍉", icon: "nutrition-outline", image: require("../assets/images/categories/cut-fruit.webp") },
+  { id: "ready-mix", label: "Ready to cook Veggie Premixes", short: "Ready Mix", emoji: "🍲", icon: "restaurant-outline", image: require("../assets/images/categories/ready-mix.webp") },
+  { id: "cut-veg", label: "Pre-cut Vegetables", short: "Pre-cut Veg", emoji: "🔪", icon: "cut-outline", image: require("../assets/images/categories/cut-veg.webp") },
+  { id: "cut-fruit", label: "Pre-cut Fruits", short: "Pre-cut Fruits", emoji: "🍉", icon: "nutrition-outline", image: require("../assets/images/categories/cut-fruit.webp") },
+  { id: "whole", label: "Whole Vegetables & Fruits", short: "Whole", emoji: "🥦", icon: "leaf-outline", image: require("../assets/images/categories/whole.webp") },
+  { id: "organic", label: "Organic Vegetables", short: "Organic", emoji: "🌱", icon: "flower-outline", image: require("../assets/images/categories/organic.webp") },
 ];
 
 export const CUT_TYPES = [

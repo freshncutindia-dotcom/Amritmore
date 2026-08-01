@@ -27,7 +27,7 @@ type Product = {
   local_name?: string;
   sku?: string;
   description: string;
-  category: "cut-veg" | "cut-fruit" | "whole" | "ready-mix";
+  category: "cut-veg" | "cut-fruit" | "whole" | "organic" | "ready-mix";
   cut_type: string;
   price: number;
   unit: string;
@@ -148,7 +148,8 @@ export default function ProductDetail() {
 
   const showCutTab = useMemo(() => {
     if (!product) return false;
-    if (product.category === "whole") return false;
+    // Whole & Organic categories: weight-only, no cut selector
+    if (product.category === "whole" || product.category === "organic") return false;
     return (product.available_cuts?.length ?? 0) > 0;
   }, [product]);
 
