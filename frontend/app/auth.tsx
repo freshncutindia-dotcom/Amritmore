@@ -112,6 +112,36 @@ export default function Auth() {
           <View style={styles.hint}>
             <Text style={styles.hintTxt}>Try admin@freshcuts.com / Admin@123 for admin access</Text>
           </View>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 22 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+            <Text style={{ color: theme.colors.onSurfaceMuted, fontSize: 12 }}>or</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+          </View>
+
+          <Pressable
+            testID="auth-mobile-btn"
+            onPress={() => router.replace("/otp")}
+            style={{
+              marginTop: 14, height: 50, borderRadius: theme.radius.pill,
+              borderWidth: 1.5, borderColor: theme.colors.brand,
+              backgroundColor: "rgba(255,255,255,0.6)",
+              flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <Ionicons name="phone-portrait-outline" size={18} color={theme.colors.brandDark} />
+            <Text style={{ color: theme.colors.brandDark, fontWeight: "700", fontSize: 14 }}>Sign in with mobile OTP</Text>
+          </Pressable>
+
+          <Pressable
+            testID="auth-guest-btn"
+            onPress={() => router.replace("/(tabs)")}
+            style={{ alignItems: "center", padding: 14, marginTop: 4 }}
+          >
+            <Text style={{ color: theme.colors.onSurfaceMuted, fontSize: 13 }}>
+              or <Text style={{ color: theme.colors.brand, fontWeight: "700" }}>continue as guest</Text>
+            </Text>
+          </Pressable>
         </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>

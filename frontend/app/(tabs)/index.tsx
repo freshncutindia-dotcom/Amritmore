@@ -16,6 +16,7 @@ import { apiFetch } from "@/src/api";
 import { useApp } from "@/src/store";
 import { useDrawer } from "@/src/components/SideDrawer";
 import { withFocusGate } from "@/src/components/withFocusGate";
+import LocationSheet from "@/src/components/LocationSheet";
 
 type Product = {
   id: string; name: string; price: number; unit: string; image: string;
@@ -94,11 +95,20 @@ function NativeHeroVideo() {
 function Home() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, cartCount, addToCart } = useApp();
+  const { user, cartCount, addToCart, location } = useApp();
   const drawer = useDrawer();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [locSheet, setLocSheet] = useState(false);
+
+  // Auto-open location sheet on first launch if no location set
+  useEffect(() => {
+    if (!location) {
+      const t = setTimeout(() => setLocSheet(true), 800);
+      return () => clearTimeout(t);
+    }
+  }, [location]);
 
   const load = useCallback(async () => {
     try {
@@ -136,10 +146,17 @@ function Home() {
             <Pressable testID="home-menu-btn" onPress={drawer.open} style={styles.brandMenuBtn}>
               <Ionicons name="menu" size={22} color={theme.colors.onSurface} />
             </Pressable>
-            <View style={styles.locPill}>
+            <Pressable
+              testID="home-loc-btn"
+              onPress={() => setLocSheet(true)}
+              style={styles.locPill}
+            >
               <Ionicons name="location" size={12} color={theme.colors.brand} />
-              <Text style={styles.locTxt}>Deliver to Bengaluru</Text>
-            </View>
+              <Text style={styles.locTxt} numberOfLines={1}>
+                {location ? `${location.area} · ${location.pincode}` : "Set delivery pincode"}
+              </Text>
+              <Ionicons name="chevron-down" size={12} color={theme.colors.onSurfaceMuted} />
+            </Pressable>
             <Pressable testID="profile-quick-btn" onPress={() => router.push("/(tabs)/profile")} style={styles.brandMenuBtn}>
               <Ionicons name="person-outline" size={20} color={theme.colors.onSurface} />
             </Pressable>
@@ -297,6 +314,8 @@ function Home() {
       </ScrollView>
 
       {cartCount > 0 && <FloatingCartFab onPress={() => router.push("/(tabs)/cart")} />}
+
+      <LocationSheet visible={locSheet} onClose={() => setLocSheet(false)} />
     </View>
   );
 }
@@ -363,8 +382,8 @@ const styles = StyleSheet.create({
   brandHeader: { backgroundColor: "transparent", paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm, alignItems: "center" },
   brandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: theme.spacing.xs },
   brandMenuBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface2, ...theme.shadow.sm },
-  locPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.colors.brandTint, paddingHorizontal: 10, paddingVertical: 6, borderRadius: theme.radius.pill },
-  locTxt: { fontSize: 11, fontWeight: "600", color: theme.colors.brand },
+  locPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.colors.brandTint, paddingHorizontal: 12, paddingVertical: 7, borderRadius: theme.radius.pill, maxWidth: 220 },
+  locTxt: { fontSize: 11, fontWeight: "600", color: theme.colors.brandDark, flexShrink: 1 },
   brandLogo: { width: 340, height: 150 },
   brandGreet: { fontSize: 12, color: theme.colors.onSurfaceMuted, marginTop: -6, textAlign: "center" },
 

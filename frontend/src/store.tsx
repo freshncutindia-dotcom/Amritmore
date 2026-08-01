@@ -13,11 +13,20 @@ export type CartItem = {
   image: string;
 };
 
+export type Location = {
+  pincode: string;
+  area: string;
+  delivery_fee: number;
+  eta_hours: number;
+};
+
 type Ctx = {
   user: User | null;
   ready: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  sendOtp: (mobile: string) => Promise<{ request_id: string; dev_code?: string }>;
+  verifyOtp: (mobile: string, otp: string, request_id: string) => Promise<void>;
   logout: () => Promise<void>;
 
   cart: CartItem[];
@@ -27,17 +36,22 @@ type Ctx = {
   clearCart: () => void;
   cartCount: number;
   cartTotal: number;
+
+  location: Location | null;
+  setLocation: (loc: Location | null) => void;
 };
 
 const AppCtx = createContext<Ctx>({} as Ctx);
 export const useApp = () => useContext(AppCtx);
 
 const CART_KEY = "freshcuts_cart";
+const LOC_KEY = "freshcuts_location";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [location, setLocationState] = useState<Location | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -53,6 +67,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         const raw = await AsyncStorage.getItem(CART_KEY);
         if (raw) setCart(JSON.parse(raw));
+        const locRaw = await AsyncStorage.getItem(LOC_KEY);
+        if (locRaw) setLocationState(JSON.parse(locRaw));
       } finally {
         setReady(true);
       }
@@ -63,6 +79,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
 
+  const setLocation = useCallback((loc: Location | null) => {
+    setLocationState(loc);
+    if (loc) AsyncStorage.setItem(LOC_KEY, JSON.stringify(loc));
+    else AsyncStorage.removeItem(LOC_KEY);
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     const res = await apiFetch("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
     await setToken(res.access_token);
@@ -71,6 +93,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     const res = await apiFetch("/auth/register", { method: "POST", body: JSON.stringify({ name, email, password }) });
+    await setToken(res.access_token);
+    setUser({ email: res.email, name: res.name, role: res.role });
+  }, []);
+
+  const sendOtp = useCallback(async (mobile: string) => {
+    const res = await apiFetch("/auth/otp/send", { method: "POST", body: JSON.stringify({ mobile }) });
+    return { request_id: res.request_id, dev_code: res.dev_code };
+  }, []);
+
+  const verifyOtp = useCallback(async (mobile: string, otp: string, request_id: string) => {
+    const res = await apiFetch("/auth/otp/verify", {
+      method: "POST",
+      body: JSON.stringify({ mobile, otp, request_id }),
+    });
     await setToken(res.access_token);
     setUser({ email: res.email, name: res.name, role: res.role });
   }, []);
@@ -115,7 +151,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppCtx.Provider
-      value={{ user, ready, login, register, logout, cart, addToCart, removeFromCart, updateQty, clearCart, cartCount, cartTotal }}
+      value={{
+        user, ready, login, register, sendOtp, verifyOtp, logout,
+        cart, addToCart, removeFromCart, updateQty, clearCart, cartCount, cartTotal,
+        location, setLocation,
+      }}
     >
       {children}
     </AppCtx.Provider>

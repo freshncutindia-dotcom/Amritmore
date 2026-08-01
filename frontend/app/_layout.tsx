@@ -48,6 +48,7 @@ export default function RootLayout() {
                 <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "transparent" } }}>
                   <Stack.Screen name="index" />
                   <Stack.Screen name="auth" />
+                  <Stack.Screen name="otp" options={{ animation: "slide_from_right" }} />
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="product/[id]" options={{ presentation: "card", animation: "slide_from_right" }} />
                   <Stack.Screen name="checkout" options={{ animation: "slide_from_bottom" }} />

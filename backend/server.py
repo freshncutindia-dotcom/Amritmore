@@ -65,6 +65,23 @@ class LoginIn(BaseModel):
     password: str
 
 
+# ---- Mobile OTP auth (mock) ----
+class OtpSendIn(BaseModel):
+    mobile: str
+
+
+class OtpSendOut(BaseModel):
+    sent: bool = True
+    request_id: str
+    dev_code: Optional[str] = None  # only in mock mode, never in prod
+
+
+class OtpVerifyIn(BaseModel):
+    mobile: str
+    otp: str
+    request_id: str
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -366,6 +383,134 @@ async def login(body: LoginIn):
 @api.get("/auth/me", response_model=UserOut)
 async def me(user=Depends(get_current_user)):
     return UserOut(email=user["email"], name=user.get("name", ""), role=user.get("role", "user"))
+
+
+# ---- Mobile OTP (mock, dev code = 123456) ----
+def normalize_mobile(m: str) -> str:
+    m = (m or "").strip().replace(" ", "").replace("-", "")
+    # normalise 10-digit Indian mobile to +91 format
+    if m.isdigit() and len(m) == 10:
+        m = "+91" + m
+    if not m.startswith("+") and m.isdigit() and len(m) > 10:
+        m = "+" + m
+    return m
+
+
+def mobile_to_email(mobile: str) -> str:
+    """Synthetic email so OTP users are compatible with existing JWT (sub=email) lookup."""
+    return f"{mobile.replace('+', '')}@mobile.freshcuts.in"
+
+
+OTP_DEV_CODE = "123456"
+OTP_TTL_MIN = 5
+
+
+@api.post("/auth/otp/send", response_model=OtpSendOut)
+async def otp_send(body: OtpSendIn):
+    mobile = normalize_mobile(body.mobile)
+    if not (mobile.startswith("+") and mobile[1:].isdigit() and 10 <= len(mobile) <= 16):
+        raise HTTPException(400, "Enter a valid mobile number")
+
+    # rudimentary throttle: 6 sends / 5 min
+    since = datetime.now(timezone.utc) - timedelta(minutes=5)
+    recent = await db.otp_requests.count_documents({
+        "mobile_number": mobile,
+        "created_at": {"$gt": since},
+    })
+    if recent >= 6:
+        raise HTTPException(429, "Too many OTP requests. Try again in a few minutes.")
+
+    request_id = uuid.uuid4().hex
+    await db.otp_requests.insert_one({
+        "request_id": request_id,
+        "mobile_number": mobile,
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=OTP_TTL_MIN),
+        "used_at": None,
+        "attempts": 0,
+        "created_at": datetime.now(timezone.utc),
+    })
+    logger.info(f"[OTP] sent to {mobile} (dev_code={OTP_DEV_CODE}) request={request_id}")
+    return OtpSendOut(sent=True, request_id=request_id, dev_code=OTP_DEV_CODE)
+
+
+@api.post("/auth/otp/verify", response_model=TokenOut)
+async def otp_verify(body: OtpVerifyIn):
+    mobile = normalize_mobile(body.mobile)
+    req = await db.otp_requests.find_one({"request_id": body.request_id, "mobile_number": mobile})
+    if not req:
+        raise HTTPException(400, "Invalid OTP request. Please request a new code.")
+    if req.get("used_at"):
+        raise HTTPException(400, "This code has already been used.")
+    exp = req.get("expires_at")
+    if exp and exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp and exp < datetime.now(timezone.utc):
+        raise HTTPException(400, "OTP expired. Please request a new code.")
+
+    # MOCK: accept the dev code or any 6-digit number
+    otp = (body.otp or "").strip()
+    if not (otp == OTP_DEV_CODE or (len(otp) == 6 and otp.isdigit())):
+        await db.otp_requests.update_one({"_id": req["_id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(400, "Invalid OTP")
+
+    await db.otp_requests.update_one({"_id": req["_id"]}, {"$set": {"used_at": datetime.now(timezone.utc)}})
+
+    # Auto-create user (mobile-only) using synthetic email so existing JWT plumbing works
+    synthetic_email = mobile_to_email(mobile)
+    user = await db.users.find_one({"email": synthetic_email}, {"_id": 0, "password_hash": 0})
+    if not user:
+        user = {
+            "email": synthetic_email,
+            "name": mobile,  # user can rename later
+            "password_hash": None,
+            "role": "user",
+            "mobile_number": mobile,
+            "auth_methods": ["otp"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.users.insert_one(user)
+        logger.info(f"[OTP] auto-created user {mobile}")
+
+    token = create_token(synthetic_email, user.get("role", "user"))
+    return TokenOut(
+        access_token=token,
+        role=user.get("role", "user"),
+        email=synthetic_email,
+        name=user.get("name", mobile),
+    )
+
+
+# ---- Geo / PIN lookup ----
+@api.get("/geo/reverse-pin")
+async def geo_reverse_pin(lat: float, lng: float):
+    """
+    Best-effort reverse-geocode to a serviceable pincode.
+    We match against seeded pincodes using approximate city centroids.
+    """
+    CENTROIDS = {
+        "560001": (12.9716, 77.5946),  # Bengaluru
+        "560034": (12.9352, 77.6146),  # Koramangala
+        "560076": (12.9166, 77.6101),  # BTM
+        "560103": (12.9257, 77.6817),  # Bellandur
+        "400001": (18.9388, 72.8354),  # Mumbai Fort
+        "400050": (19.0611, 72.8302),  # Bandra
+        "110001": (28.6329, 77.2195),  # Delhi Central
+        "110016": (28.5473, 77.2000),  # Hauz Khas
+    }
+    best_pin = None
+    best_d = 1e18
+    for pin, (plat, plng) in CENTROIDS.items():
+        d = (plat - lat) ** 2 + (plng - lng) ** 2
+        if d < best_d:
+            best_d = d
+            best_pin = pin
+    # if very far (>2 degrees) treat as unknown
+    if best_d > 4:  # rough cutoff: ~200 km
+        return {"pincode": None, "message": "Location outside service area"}
+    doc = await db.pincodes.find_one({"pincode": best_pin}, {"_id": 0})
+    if not doc:
+        return {"pincode": None, "message": "No serviceable pincode near your location"}
+    return {"pincode": doc["pincode"], "area": doc["area"], "delivery_fee": doc["delivery_fee"], "eta_hours": doc["eta_hours"], "serviceable": True}
 
 
 # --- Products ---
@@ -1064,6 +1209,19 @@ async def seed_database():
             pc = Pincode(**p)
             await db.pincodes.insert_one(pc.dict())
         logger.info(f"Seeded {len(SEED_PINCODES)} pincodes")
+
+    # Auth-related indexes (idempotent)
+    try:
+        await db.otp_requests.create_index("expires_at", expireAfterSeconds=0)
+        await db.otp_requests.create_index("request_id", unique=True)
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index(
+            "mobile_number",
+            unique=True,
+            partialFilterExpression={"mobile_number": {"$exists": True, "$type": "string"}},
+        )
+    except Exception as e:
+        logger.warning(f"Index creation warning: {e}")
 
 
 @app.on_event("shutdown")
