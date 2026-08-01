@@ -16,6 +16,7 @@ function Profile() {
     ? [
         { icon: "gift-outline" as const, label: "Subscribe & Save", tid: "profile-subscribe", onPress: () => router.push("/subscribe"), accent: true },
         { icon: "receipt-outline" as const, label: "My Orders", tid: "profile-orders", onPress: () => router.push("/orders") },
+        { icon: "home-outline" as const, label: "Saved Addresses", tid: "profile-addresses", onPress: () => router.push("/addresses") },
         { icon: "location-outline" as const, label: "Serviceable Pincodes", tid: "profile-pincodes", onPress: () => router.push({ pathname: "/(tabs)/cart" }) },
         ...(user.role === "admin" ? [{ icon: "shield-checkmark-outline" as const, label: "Admin Panel", tid: "profile-admin", onPress: () => router.push("/admin") }] : []),
         { icon: "log-out-outline" as const, label: "Sign out", tid: "profile-signout", onPress: async () => { await logout(); router.replace("/(tabs)"); }, danger: true },

@@ -52,6 +52,7 @@ export default function RootLayout() {
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="product/[id]" options={{ presentation: "card", animation: "slide_from_right" }} />
                   <Stack.Screen name="checkout" options={{ animation: "slide_from_bottom" }} />
+                  <Stack.Screen name="addresses" options={{ animation: "slide_from_right" }} />
                   <Stack.Screen name="admin" options={{ animation: "slide_from_right" }} />
                   <Stack.Screen name="orders" options={{ animation: "slide_from_right" }} />
                   <Stack.Screen name="subscribe" options={{ animation: "slide_from_right" }} />

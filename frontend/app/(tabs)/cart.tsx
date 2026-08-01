@@ -43,10 +43,10 @@ function CartScreen() {
 
   const proceed = () => {
     if (!user) {
-      router.push({ pathname: "/auth", params: { redirect: "/checkout", pincode, delivery_fee: String(deliveryFee) } });
+      router.push({ pathname: "/otp", params: { redirect: "/checkout" } });
       return;
     }
-    router.push({ pathname: "/checkout", params: { pincode, delivery_fee: String(deliveryFee) } });
+    router.push("/checkout");
   };
 
   return (

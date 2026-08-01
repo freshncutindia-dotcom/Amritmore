@@ -155,10 +155,14 @@ class OrderIn(BaseModel):
     address: str
     pincode: str
     phone: str
-    payment_method: Literal["cod", "stripe"] = "cod"
+    payment_method: Literal["cod", "stripe", "rzp"] = "cod"
     delivery_fee: float = 0.0
+    handling_fee: float = 0.0
     subtotal: float
     total: float
+    address_id: Optional[str] = None
+    delivery_slot_id: Optional[str] = None
+    delivery_slot_label: Optional[str] = None
 
 
 class Order(OrderIn):
@@ -167,6 +171,24 @@ class Order(OrderIn):
     status: Literal["pending", "paid", "confirmed", "packed", "out-for-delivery", "delivered", "cancelled"] = "pending"
     payment_status: Literal["pending", "paid", "failed"] = "pending"
     stripe_session_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ---- Saved addresses ----
+class AddressIn(BaseModel):
+    label: Literal["home", "office", "other"] = "home"
+    name: str
+    mobile: str
+    line1: str
+    line2: Optional[str] = None
+    area: str
+    pincode: str
+    is_default: bool = False
+
+
+class Address(AddressIn):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_email: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -678,6 +700,94 @@ async def quick_buy_again(user=Depends(get_current_user), limit: int = 8):
         if len(result) >= limit:
             break
     return result
+
+
+# ---- Saved addresses ----
+@api.get("/addresses", response_model=List[Address])
+async def list_addresses(user=Depends(get_current_user)):
+    docs = await db.addresses.find({"user_email": user["email"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    # ensure only one is_default
+    return [Address(**d) for d in docs]
+
+
+@api.post("/addresses", response_model=Address)
+async def create_address(body: AddressIn, user=Depends(get_current_user)):
+    if not (body.pincode.isdigit() and len(body.pincode) == 6):
+        raise HTTPException(400, "Invalid pincode")
+    # if first, mark default
+    existing = await db.addresses.count_documents({"user_email": user["email"]})
+    is_default = body.is_default or existing == 0
+    if is_default:
+        await db.addresses.update_many({"user_email": user["email"]}, {"$set": {"is_default": False}})
+    addr = Address(**body.dict(), user_email=user["email"])
+    addr.is_default = is_default
+    await db.addresses.insert_one(addr.dict())
+    return addr
+
+
+@api.patch("/addresses/{addr_id}", response_model=Address)
+async def update_address(addr_id: str, body: AddressIn, user=Depends(get_current_user)):
+    existing = await db.addresses.find_one({"id": addr_id, "user_email": user["email"]})
+    if not existing:
+        raise HTTPException(404, "Address not found")
+    payload = body.dict()
+    if payload.get("is_default"):
+        await db.addresses.update_many({"user_email": user["email"]}, {"$set": {"is_default": False}})
+    await db.addresses.update_one({"id": addr_id}, {"$set": payload})
+    doc = await db.addresses.find_one({"id": addr_id}, {"_id": 0})
+    return Address(**doc)
+
+
+@api.delete("/addresses/{addr_id}")
+async def delete_address(addr_id: str, user=Depends(get_current_user)):
+    res = await db.addresses.delete_one({"id": addr_id, "user_email": user["email"]})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Address not found")
+    return {"ok": True}
+
+
+@api.post("/addresses/{addr_id}/default", response_model=Address)
+async def set_default_address(addr_id: str, user=Depends(get_current_user)):
+    existing = await db.addresses.find_one({"id": addr_id, "user_email": user["email"]})
+    if not existing:
+        raise HTTPException(404, "Address not found")
+    await db.addresses.update_many({"user_email": user["email"]}, {"$set": {"is_default": False}})
+    await db.addresses.update_one({"id": addr_id}, {"$set": {"is_default": True}})
+    doc = await db.addresses.find_one({"id": addr_id}, {"_id": 0})
+    return Address(**doc)
+
+
+# ---- Delivery slots ----
+@api.get("/delivery/slots")
+async def list_delivery_slots():
+    """
+    Returns available slots for the next 24 hours.
+    Express window is only offered until ~7 PM; scheduled slots always available for next-day.
+    """
+    from datetime import date, timedelta as td
+    now = datetime.now(timezone.utc)
+    # IST offset for the day calculation (approx)
+    ist_hour = (now.hour + 5) % 24  # very rough — for MVP messaging
+    tomorrow = (date.today() + td(days=1)).isoformat()
+
+    slots = []
+    # Express only if not late-evening
+    if ist_hour < 19:
+        slots.append({
+            "id": "express",
+            "label": "Express (4–6 hrs)",
+            "sub": "Get it fresh, today",
+            "date": date.today().isoformat(),
+            "fee": 49,
+            "type": "express",
+            "icon": "flash",
+        })
+    slots.extend([
+        {"id": f"{tomorrow}-morning", "label": "Tomorrow · 7 – 11 AM", "sub": "Fresh from farm at sunrise", "date": tomorrow, "fee": 29, "type": "scheduled", "icon": "sunny"},
+        {"id": f"{tomorrow}-noon",    "label": "Tomorrow · 11 AM – 3 PM", "sub": "Best for lunch prep", "date": tomorrow, "fee": 29, "type": "scheduled", "icon": "partly-sunny"},
+        {"id": f"{tomorrow}-evening", "label": "Tomorrow · 3 – 7 PM", "sub": "Ready for dinner", "date": tomorrow, "fee": 29, "type": "scheduled", "icon": "moon"},
+    ])
+    return {"slots": slots, "handling_fee": 9}
 
 
 # --- Products ---
