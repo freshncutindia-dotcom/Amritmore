@@ -175,6 +175,39 @@ class CheckoutSessionIn(BaseModel):
     origin_url: str
 
 
+# --- Daily Deals ---
+class DealIn(BaseModel):
+    product_id: str
+    discount_pct: int = Field(..., ge=1, le=90)
+    banner_text: Optional[str] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    active: bool = True
+
+
+class Deal(DealIn):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class DealOut(BaseModel):
+    id: str
+    product_id: str
+    discount_pct: int
+    banner_text: Optional[str] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    active: bool = True
+    # enriched
+    product_name: str
+    product_image: str
+    product_unit: str
+    original_price: float
+    deal_price: float
+    category: str
+    cut_type: str
+
+
 # --- Subscription models ---
 class SubscriptionIn(BaseModel):
     box_type: Literal["essentials", "mixed", "premium"]
@@ -511,6 +544,140 @@ async def geo_reverse_pin(lat: float, lng: float):
     if not doc:
         return {"pincode": None, "message": "No serviceable pincode near your location"}
     return {"pincode": doc["pincode"], "area": doc["area"], "delivery_fee": doc["delivery_fee"], "eta_hours": doc["eta_hours"], "serviceable": True}
+
+
+# ---- Daily Deals ----
+async def _enrich_deal(deal_doc: dict) -> Optional[DealOut]:
+    prod = await db.products.find_one({"id": deal_doc["product_id"]}, {"_id": 0})
+    if not prod:
+        return None
+    original = float(prod.get("price") or 0)
+    pct = int(deal_doc.get("discount_pct") or 0)
+    deal_price = round(original * (100 - pct) / 100.0, 2)
+    return DealOut(
+        id=deal_doc["id"],
+        product_id=deal_doc["product_id"],
+        discount_pct=pct,
+        banner_text=deal_doc.get("banner_text"),
+        starts_at=deal_doc.get("starts_at"),
+        ends_at=deal_doc.get("ends_at"),
+        active=bool(deal_doc.get("active", True)),
+        product_name=prod.get("name", ""),
+        product_image=prod.get("image", ""),
+        product_unit=prod.get("unit", ""),
+        original_price=original,
+        deal_price=deal_price,
+        category=prod.get("category", ""),
+        cut_type=prod.get("cut_type", "whole"),
+    )
+
+
+def _deal_is_live(d: dict, now: datetime) -> bool:
+    if not d.get("active", True):
+        return False
+    sa = d.get("starts_at")
+    ea = d.get("ends_at")
+    if sa and sa.tzinfo is None: sa = sa.replace(tzinfo=timezone.utc)
+    if ea and ea.tzinfo is None: ea = ea.replace(tzinfo=timezone.utc)
+    if sa and sa > now: return False
+    if ea and ea < now: return False
+    return True
+
+
+@api.get("/deals", response_model=List[DealOut])
+async def list_active_deals():
+    """Public endpoint — currently live deals (active + within date window)."""
+    now = datetime.now(timezone.utc)
+    docs = await db.deals.find({}, {"_id": 0}).to_list(200)
+    live = [d for d in docs if _deal_is_live(d, now)]
+    enriched: List[DealOut] = []
+    for d in live:
+        e = await _enrich_deal(d)
+        if e: enriched.append(e)
+    return enriched
+
+
+@api.get("/admin/deals", response_model=List[DealOut])
+async def admin_list_deals(_=Depends(require_admin)):
+    docs = await db.deals.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    enriched: List[DealOut] = []
+    for d in docs:
+        e = await _enrich_deal(d)
+        if e: enriched.append(e)
+    return enriched
+
+
+@api.post("/admin/deals", response_model=DealOut)
+async def admin_create_deal(body: DealIn, _=Depends(require_admin)):
+    if not await db.products.find_one({"id": body.product_id}):
+        raise HTTPException(400, "Product not found")
+    deal = Deal(**body.dict())
+    doc = deal.dict()
+    await db.deals.insert_one(doc)
+    enriched = await _enrich_deal(doc)
+    if not enriched:
+        raise HTTPException(500, "Failed to enrich deal")
+    return enriched
+
+
+@api.delete("/admin/deals/{deal_id}")
+async def admin_delete_deal(deal_id: str, _=Depends(require_admin)):
+    res = await db.deals.delete_one({"id": deal_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Deal not found")
+    return {"ok": True}
+
+
+@api.patch("/admin/deals/{deal_id}", response_model=DealOut)
+async def admin_toggle_deal(deal_id: str, active: bool, _=Depends(require_admin)):
+    doc = await db.deals.find_one({"id": deal_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Deal not found")
+    await db.deals.update_one({"id": deal_id}, {"$set": {"active": active}})
+    doc["active"] = active
+    enriched = await _enrich_deal(doc)
+    if not enriched:
+        raise HTTPException(500, "Failed to enrich deal")
+    return enriched
+
+
+# ---- Quick Buy Again ----
+@api.get("/orders/quick-buy-again")
+async def quick_buy_again(user=Depends(get_current_user), limit: int = 8):
+    """Returns the current user's most-frequently-ordered products (product+cut+unit combos)."""
+    cursor = db.orders.find(
+        {"user_email": user["email"]},
+        {"_id": 0, "items": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(30)
+    orders = await cursor.to_list(30)
+    if not orders:
+        return []
+
+    freq: Dict[str, dict] = {}
+    for o in orders:
+        for it in o.get("items", []):
+            key = f"{it.get('product_id')}|{it.get('cut_type')}|{it.get('unit')}"
+            if key not in freq:
+                freq[key] = {**it, "count": 0, "last_ordered": o.get("created_at")}
+            freq[key]["count"] += int(it.get("quantity", 1))
+    # Filter items whose product still exists + return latest price
+    result = []
+    for entry in sorted(freq.values(), key=lambda x: (-x["count"], x.get("last_ordered") or 0)):
+        prod = await db.products.find_one({"id": entry["product_id"]}, {"_id": 0})
+        if not prod:
+            continue
+        result.append({
+            "product_id": entry["product_id"],
+            "name": prod.get("name", entry.get("name", "")),
+            "image": prod.get("image", entry.get("image", "")),
+            "price": prod.get("price", entry.get("price", 0)),
+            "unit": entry.get("unit", prod.get("unit", "")),
+            "cut_type": entry.get("cut_type", prod.get("cut_type", "whole")),
+            "order_count": entry["count"],
+        })
+        if len(result) >= limit:
+            break
+    return result
 
 
 # --- Products ---

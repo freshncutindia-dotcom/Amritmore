@@ -33,11 +33,11 @@ export const theme = {
 };
 
 export const CATEGORIES = [
-  { id: "cut-veg", label: "Pre-cut Veggies", emoji: "🔪", icon: "cut-outline", image: require("../assets/images/categories/cut-veg.webp") },
-  { id: "cut-fruit", label: "Pre-cut Fruits", emoji: "🍉", icon: "nutrition-outline", image: require("../assets/images/categories/cut-fruit.webp") },
-  { id: "whole", label: "Whole Veggies & Fruits", emoji: "🥦", icon: "leaf-outline", image: require("../assets/images/categories/whole.webp") },
-  { id: "organic", label: "Organic Veggies & Fruits", emoji: "🌱", icon: "flower-outline", image: require("../assets/images/categories/organic.webp") },
-  { id: "ready-mix", label: "Ready-to-cook Mixes", emoji: "🍲", icon: "restaurant-outline", image: require("../assets/images/categories/ready-mix.webp") },
+  { id: "cut-veg", label: "Pre-cut", emoji: "🔪", icon: "cut-outline", image: require("../assets/images/categories/cut-veg.webp") },
+  { id: "ready-mix", label: "Ready Mix", emoji: "🍲", icon: "restaurant-outline", image: require("../assets/images/categories/ready-mix.webp") },
+  { id: "organic", label: "Organic", emoji: "🌱", icon: "flower-outline", image: require("../assets/images/categories/organic.webp") },
+  { id: "whole", label: "Regular", emoji: "🥦", icon: "leaf-outline", image: require("../assets/images/categories/whole.webp") },
+  { id: "cut-fruit", label: "Fruits", emoji: "🍉", icon: "nutrition-outline", image: require("../assets/images/categories/cut-fruit.webp") },
 ];
 
 export const CUT_TYPES = [

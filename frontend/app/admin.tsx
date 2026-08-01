@@ -13,9 +13,10 @@ export default function Admin() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useApp();
-  const [tab, setTab] = useState<"products" | "pincodes">("products");
+  const [tab, setTab] = useState<"products" | "pincodes" | "deals">("products");
   const [products, setProducts] = useState<any[]>([]);
   const [pincodes, setPincodes] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // product form
@@ -32,11 +33,21 @@ export default function Admin() {
   const [area, setArea] = useState("");
   const [fee, setFee] = useState("0");
 
+  // deal form
+  const [dProduct, setDProduct] = useState<string>("");
+  const [dPct, setDPct] = useState("20");
+  const [dBanner, setDBanner] = useState("");
+
   const load = useCallback(async () => {
     setLoading(true);
-    const [pr, pc] = await Promise.all([apiFetch("/products"), apiFetch("/pincodes")]);
+    const [pr, pc, dl] = await Promise.all([
+      apiFetch("/products"),
+      apiFetch("/pincodes"),
+      apiFetch("/admin/deals").catch(() => []),
+    ]);
     setProducts(pr);
     setPincodes(pc);
+    setDeals(dl);
     setLoading(false);
   }, []);
 
@@ -81,6 +92,27 @@ export default function Admin() {
 
   const delPincode = async (pc: string) => { await apiFetch(`/pincodes/${pc}`, { method: "DELETE" }); load(); };
 
+  const addDeal = async () => {
+    if (!dProduct || !dPct) return;
+    await apiFetch("/admin/deals", {
+      method: "POST",
+      body: JSON.stringify({
+        product_id: dProduct,
+        discount_pct: Number(dPct),
+        banner_text: dBanner || null,
+      }),
+    });
+    setDBanner("");
+    load();
+  };
+
+  const delDeal = async (id: string) => { await apiFetch(`/admin/deals/${id}`, { method: "DELETE" }); load(); };
+
+  const toggleDeal = async (id: string, active: boolean) => {
+    await apiFetch(`/admin/deals/${id}?active=${active ? "false" : "true"}`, { method: "PATCH" });
+    load();
+  };
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: theme.colors.surface }}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
@@ -93,8 +125,11 @@ export default function Admin() {
         <Pressable testID="tab-products" onPress={() => setTab("products")} style={[styles.tab, tab === "products" && styles.tabActive]}>
           <Text style={[styles.tabTxt, tab === "products" && styles.tabTxtActive]}>Products ({products.length})</Text>
         </Pressable>
+        <Pressable testID="tab-deals" onPress={() => setTab("deals")} style={[styles.tab, tab === "deals" && styles.tabActive]}>
+          <Text style={[styles.tabTxt, tab === "deals" && styles.tabTxtActive]}>Deals ({deals.length})</Text>
+        </Pressable>
         <Pressable testID="tab-pincodes" onPress={() => setTab("pincodes")} style={[styles.tab, tab === "pincodes" && styles.tabActive]}>
-          <Text style={[styles.tabTxt, tab === "pincodes" && styles.tabTxtActive]}>Pincodes ({pincodes.length})</Text>
+          <Text style={[styles.tabTxt, tab === "pincodes" && styles.tabTxtActive]}>PINs ({pincodes.length})</Text>
         </Pressable>
       </View>
 
@@ -137,6 +172,71 @@ export default function Admin() {
                     <Text style={styles.itemMeta}>{p.cut_type} · {p.unit} · ₹{p.price}</Text>
                   </View>
                   <Pressable testID={`admin-del-${p.id}`} onPress={() => delProduct(p.id)} style={styles.delBtn}>
+                    <Ionicons name="trash" size={16} color={theme.colors.error} />
+                  </Pressable>
+                </Animated.View>
+              ))}
+            </>
+          )}
+
+          {tab === "deals" && (
+            <>
+              <View style={styles.card}>
+                <Text style={styles.formTitle}>Create daily deal</Text>
+                <Text style={styles.mini}>Product</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+                  {products.slice(0, 40).map((p) => (
+                    <Pressable
+                      key={p.id}
+                      testID={`admin-d-product-${p.id}`}
+                      onPress={() => setDProduct(p.id)}
+                      style={[styles.chip, dProduct === p.id && styles.chipActive]}
+                    >
+                      <Text numberOfLines={1} style={[styles.chipTxt, dProduct === p.id && styles.chipTxtActive]}>{p.name}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Text style={styles.mini}>Discount %</Text>
+                <TextInput
+                  testID="admin-d-pct"
+                  placeholder="e.g. 20"
+                  placeholderTextColor={theme.colors.onSurfaceMuted}
+                  keyboardType="numeric"
+                  maxLength={2}
+                  style={styles.input}
+                  value={dPct}
+                  onChangeText={setDPct}
+                />
+                <TextInput
+                  testID="admin-d-banner"
+                  placeholder="Banner text (optional, e.g. 'Deal of the day')"
+                  placeholderTextColor={theme.colors.onSurfaceMuted}
+                  style={styles.input}
+                  value={dBanner}
+                  onChangeText={setDBanner}
+                />
+                <Pressable
+                  testID="admin-d-submit"
+                  onPress={addDeal}
+                  disabled={!dProduct || !dPct}
+                  style={[styles.submit, (!dProduct || !dPct) && { opacity: 0.5 }]}
+                >
+                  <Text style={styles.submitTxt}>+ Publish deal</Text>
+                </Pressable>
+              </View>
+
+              {deals.map((d, i) => (
+                <Animated.View key={d.id} entering={FadeInDown.delay(i * 20)} style={styles.item}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemName}>{d.product_name}</Text>
+                    <Text style={styles.itemMeta}>
+                      {d.discount_pct}% off · ₹{Math.round(d.deal_price)} <Text style={{ textDecorationLine: "line-through", color: theme.colors.onSurfaceMuted }}>₹{Math.round(d.original_price)}</Text> {d.active ? "· LIVE" : "· PAUSED"}
+                    </Text>
+                  </View>
+                  <Pressable testID={`admin-toggle-${d.id}`} onPress={() => toggleDeal(d.id, d.active)} style={[styles.delBtn, { backgroundColor: theme.colors.brandTint, marginRight: 8 }]}>
+                    <Ionicons name={d.active ? "pause" : "play"} size={16} color={theme.colors.brandDark} />
+                  </Pressable>
+                  <Pressable testID={`admin-del-deal-${d.id}`} onPress={() => delDeal(d.id)} style={styles.delBtn}>
                     <Ionicons name="trash" size={16} color={theme.colors.error} />
                   </Pressable>
                 </Animated.View>

@@ -17,6 +17,7 @@ import { useApp } from "@/src/store";
 import { useDrawer } from "@/src/components/SideDrawer";
 import { withFocusGate } from "@/src/components/withFocusGate";
 import LocationSheet from "@/src/components/LocationSheet";
+import { DailyDealsCarousel, QuickBuyAgain } from "@/src/components/HomeSections";
 
 type Product = {
   id: string; name: string; price: number; unit: string; image: string;
@@ -201,6 +202,12 @@ function Home() {
             </Pressable>
           </View>
         </View>
+
+        {/* Daily Deals */}
+        <DailyDealsCarousel />
+
+        {/* Quick Buy Again (login-only) */}
+        <QuickBuyAgain />
 
         {/* Categories — horizontal scroll (compact) */}
         <Animated.View entering={FadeInDown.delay(50)} style={styles.sectionTight}>
