@@ -53,9 +53,9 @@ export default function OtpAuth() {
     setErr(null);
     setBusy(true);
     try {
-      const { request_id, dev_code } = await sendOtp("+91" + mobile.trim());
+      const { request_id } = await sendOtp("+91" + mobile.trim());
       setRequestId(request_id);
-      setDevCode(dev_code);
+      setDevCode("123456"); // mock hint — real SMS provider pending
       setStep("otp");
       setResendIn(30);
       Haptics.selectionAsync();

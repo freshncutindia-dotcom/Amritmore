@@ -25,7 +25,7 @@ type Ctx = {
   ready: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  sendOtp: (mobile: string) => Promise<{ request_id: string; dev_code?: string }>;
+  sendOtp: (mobile: string) => Promise<{ request_id: string }>;
   verifyOtp: (mobile: string, otp: string, request_id: string) => Promise<void>;
   logout: () => Promise<void>;
 
@@ -100,7 +100,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const sendOtp = useCallback(async (mobile: string) => {
     const res = await apiFetch("/auth/otp/send", { method: "POST", body: JSON.stringify({ mobile }) });
-    return { request_id: res.request_id, dev_code: res.dev_code };
+    return { request_id: res.request_id };
   }, []);
 
   const verifyOtp = useCallback(async (mobile: string, otp: string, request_id: string) => {

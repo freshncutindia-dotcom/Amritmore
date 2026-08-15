@@ -50,7 +50,7 @@ api = APIRouter(prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
+    allow_credentials=False,  # bearer-token auth; no cookies needed
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,7 +80,6 @@ class OtpSendIn(BaseModel):
 class OtpSendOut(BaseModel):
     sent: bool = True
     request_id: str
-    dev_code: Optional[str] = None  # only in mock mode, never in prod
 
 
 class OtpVerifyIn(BaseModel):
@@ -366,12 +365,29 @@ async def register(body: RegisterIn):
     return TokenOut(access_token=token, role="user", email=email, name=body.name)
 
 
+# Brute-force protection for password login (in-memory, per-email)
+_LOGIN_FAILS: Dict[str, List[datetime]] = {}
+LOGIN_MAX_FAILS = 5
+LOGIN_WINDOW_MIN = 15
+
+
+def _login_blocked(key: str) -> bool:
+    now = datetime.now(timezone.utc)
+    fails = [t for t in _LOGIN_FAILS.get(key, []) if (now - t).total_seconds() < LOGIN_WINDOW_MIN * 60]
+    _LOGIN_FAILS[key] = fails
+    return len(fails) >= LOGIN_MAX_FAILS
+
+
 @api.post("/auth/login", response_model=TokenOut)
 async def login(body: LoginIn):
     email = body.email.lower()
+    if _login_blocked(email):
+        raise HTTPException(429, "Too many failed attempts. Try again in 15 minutes.")
     user = await db.users.find_one({"email": email})
-    if not user or not verify_pw(body.password, user["password_hash"]):
+    if not user or not user.get("password_hash") or not verify_pw(body.password, user["password_hash"]):
+        _LOGIN_FAILS.setdefault(email, []).append(datetime.now(timezone.utc))
         raise HTTPException(401, "Incorrect email or password")
+    _LOGIN_FAILS.pop(email, None)
     token = create_token(email, user.get("role", "user"))
     return TokenOut(access_token=token, role=user.get("role", "user"), email=email, name=user.get("name", ""))
 
@@ -426,7 +442,8 @@ async def otp_send(body: OtpSendIn):
         "created_at": datetime.now(timezone.utc),
     })
     logger.info(f"[OTP] sent to {mobile} (dev_code={OTP_DEV_CODE}) request={request_id}")
-    return OtpSendOut(sent=True, request_id=request_id, dev_code=OTP_DEV_CODE)
+    # SECURITY: never return the code in the API response
+    return OtpSendOut(sent=True, request_id=request_id)
 
 
 @api.post("/auth/otp/verify", response_model=TokenOut)
@@ -443,9 +460,11 @@ async def otp_verify(body: OtpVerifyIn):
     if exp and exp < datetime.now(timezone.utc):
         raise HTTPException(400, "OTP expired. Please request a new code.")
 
-    # MOCK: accept the dev code or any 6-digit number
+    # MOCK: exact dev code only, max 5 attempts per request
+    if int(req.get("attempts") or 0) >= 5:
+        raise HTTPException(429, "Too many attempts. Please request a new code.")
     otp = (body.otp or "").strip()
-    if not (otp == OTP_DEV_CODE or (len(otp) == 6 and otp.isdigit())):
+    if otp != OTP_DEV_CODE:
         await db.otp_requests.update_one({"_id": req["_id"]}, {"$inc": {"attempts": 1}})
         raise HTTPException(400, "Invalid OTP")
 
@@ -800,7 +819,7 @@ async def list_products(
     if category and category != "all":
         query["category"] = category
     if cut_type and cut_type != "all":
-        query["available_cuts"] = {"$regex": cut_type, "$options": "i"}
+        query["available_cuts"] = {"$regex": re.escape(cut_type), "$options": "i"}
     if q:
         query["$or"] = _text_clauses(_expand_terms(q))
     price_q = {}
@@ -878,12 +897,73 @@ async def del_pincode(pincode: str, _=Depends(require_admin)):
 
 
 # --- Orders ---
+def _parse_grams(u: str) -> float:
+    m = (u or "").strip().lower()
+    try:
+        if m.endswith("kg"):
+            return float(m[:-2]) * 1000
+        if m.endswith("g"):
+            return float(m[:-1])
+    except ValueError:
+        pass
+    return 500.0
+
+
+def _weight_multiplier(unit: str, base: str) -> float:
+    b = _parse_grams(base)
+    return 1.0 if b == 0 else _parse_grams(unit) / b
+
+
+def _slot_fee(slot_id: Optional[str]) -> float:
+    return 49.0 if slot_id == "express" else 29.0
+
+
+HANDLING_FEE = 9.0
+
+
+async def _server_priced_items(items: List[OrderItem], apply_deals: bool = True, skip_missing: bool = False) -> List[OrderItem]:
+    """SECURITY (SEC-001): recompute item prices from the catalog. Client-sent prices are ignored."""
+    if not items or len(items) > 50:
+        raise HTTPException(400, "Invalid basket size")
+    now = datetime.now(timezone.utc)
+    priced: List[OrderItem] = []
+    for it in items:
+        p = await db.products.find_one({"id": it.product_id, "is_available": {"$ne": False}}, {"_id": 0})
+        if not p:
+            if skip_missing:
+                continue
+            raise HTTPException(400, f"'{it.name}' is currently unavailable")
+        unit_price = float(p["price"]) * _weight_multiplier(it.unit, p.get("unit", "500g"))
+        if apply_deals:
+            deal = await db.deals.find_one({"product_id": it.product_id}, {"_id": 0})
+            if deal and _deal_is_live(deal, now):
+                unit_price *= (100 - int(deal.get("discount_pct") or 0)) / 100.0
+        qty = max(1, min(int(it.quantity), 99))
+        priced.append(OrderItem(
+            product_id=it.product_id, name=p["name"], price=round(unit_price),
+            quantity=qty, cut_type=it.cut_type, unit=it.unit, image=p.get("image") or it.image,
+        ))
+    return priced
+
+
 @api.post("/orders", response_model=Order)
 async def create_order(body: OrderIn, user=Depends(get_current_user)):
     pc = await db.pincodes.find_one({"pincode": body.pincode})
     if not pc:
         raise HTTPException(400, "Pincode not serviceable")
-    order = Order(user_email=user["email"], **body.dict())
+    # SECURITY: server-side pricing — ignore client money fields
+    items = await _server_priced_items(body.items)
+    subtotal = round(sum(it.price * it.quantity for it in items), 2)
+    delivery_fee = _slot_fee(body.delivery_slot_id)
+    data = body.dict()
+    data.update({
+        "items": [it.dict() for it in items],
+        "subtotal": subtotal,
+        "delivery_fee": delivery_fee,
+        "handling_fee": HANDLING_FEE,
+        "total": round(subtotal + delivery_fee + HANDLING_FEE, 2),
+    })
+    order = Order(user_email=user["email"], **data)
     doc = order.dict()
     doc["created_at"] = doc["created_at"].isoformat()
     await db.orders.insert_one(doc)
@@ -954,8 +1034,9 @@ async def payment_status(session_id: str, user=Depends(get_current_user)):
     stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY)
     try:
         status = await stripe_checkout.get_checkout_status(session_id)
-    except Exception as e:
-        raise HTTPException(500, f"Stripe error: {str(e)}")
+    except Exception:
+        logger.exception("Stripe status error")
+        raise HTTPException(502, "Payment service error. Please try again.")
     paid = status.payment_status == "paid"
     order_id = (status.metadata or {}).get("order_id")
     if paid and order_id:
@@ -1430,7 +1511,9 @@ async def create_subscription(body: SubscriptionIn, user=Depends(get_current_use
         raise HTTPException(400, "Add at least one item to your basket")
     if not await db.pincodes.find_one({"pincode": body.pincode}):
         raise HTTPException(400, "Pincode not serviceable")
-    sub = Subscription(user_email=user["email"], **body.dict())
+    # SECURITY: server-side pricing for the recurring basket (deals excluded)
+    items = await _server_priced_items(body.items, apply_deals=False)
+    sub = Subscription(user_email=user["email"], **{**body.dict(), "items": [it.dict() for it in items]})
     sub.next_delivery_date = _first_delivery_date(body).isoformat()
     doc = sub.dict()
     doc["created_at"] = doc["created_at"].isoformat()
@@ -1461,6 +1544,9 @@ async def update_subscription(sub_id: str, body: SubscriptionUpdate, user=Depend
     payload = {k: v for k, v in body.dict().items() if v is not None}
     if body.items is not None and not body.items:
         raise HTTPException(400, "Basket cannot be empty")
+    if body.items:
+        # SECURITY: reprice edited basket server-side
+        payload["items"] = [it.dict() for it in await _server_priced_items(body.items, apply_deals=False)]
     merged = {**doc, **payload}
     # recompute next delivery if resuming or frequency changed
     if payload.get("status") == "active" or "frequency" in payload or "weekly_day" in payload:
@@ -1488,8 +1574,13 @@ async def skip_next_delivery(sub_id: str, user=Depends(get_current_user)):
 
 async def _generate_subscription_order(sub: dict) -> str:
     pc = await db.pincodes.find_one({"pincode": sub["pincode"]}) or {}
-    items = [OrderItem(**it) for it in sub["items"]]
-    subtotal = sum(it.price * it.quantity for it in items)
+    # SECURITY: price at current catalog rates; skip items that vanished
+    items = await _server_priced_items(
+        [OrderItem(**it) for it in sub["items"]], apply_deals=False, skip_missing=True,
+    )
+    if not items:
+        raise ValueError("no available items in basket")
+    subtotal = round(sum(it.price * it.quantity for it in items), 2)
     delivery_fee = float(pc.get("delivery_fee") or 0)
     handling_fee = 9.0
     order = Order(
@@ -2012,16 +2103,20 @@ SEED_PINCODES = [
 async def seed_database():
     # Background scheduler: generate orders for due subscriptions (hourly)
     asyncio.create_task(_subscription_loop())
-    # Seed admin
-    if not await db.users.find_one({"email": ADMIN_EMAIL.lower()}):
-        await db.users.insert_one({
-            "email": ADMIN_EMAIL.lower(),
-            "name": "FreshCuts Admin",
-            "password_hash": hash_pw(ADMIN_PASSWORD),
-            "role": "admin",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
-        logger.info("Seeded admin user")
+    # Seed/sync admin — password hash always follows backend/.env (SEC-002)
+    await db.users.update_one(
+        {"email": ADMIN_EMAIL.lower()},
+        {
+            "$set": {"password_hash": hash_pw(ADMIN_PASSWORD), "role": "admin"},
+            "$setOnInsert": {
+                "email": ADMIN_EMAIL.lower(),
+                "name": "FreshCuts Admin",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            },
+        },
+        upsert=True,
+    )
+    logger.info("Admin user ensured (password synced from env)")
 
     # Re-seed products whenever SEED_VERSION changes
     meta = await db.meta.find_one({"key": "seed_version"})

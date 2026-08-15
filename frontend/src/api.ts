@@ -1,19 +1,37 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
 
 const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 export const API_URL = `${BASE_URL}/api`;
+
+const TOKEN_KEY = "auth_token";
+const useSecure = Platform.OS !== "web";
 
 let inMemoryToken: string | null = null;
 
 export async function setToken(token: string | null) {
   inMemoryToken = token;
-  if (token) await AsyncStorage.setItem("auth_token", token);
-  else await AsyncStorage.removeItem("auth_token");
+  if (useSecure) {
+    if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
+    else await SecureStore.deleteItemAsync(TOKEN_KEY);
+  } else {
+    if (token) await AsyncStorage.setItem(TOKEN_KEY, token);
+    else await AsyncStorage.removeItem(TOKEN_KEY);
+  }
 }
 
 export async function loadToken(): Promise<string | null> {
   if (inMemoryToken) return inMemoryToken;
-  const t = await AsyncStorage.getItem("auth_token");
+  let t = useSecure ? await SecureStore.getItemAsync(TOKEN_KEY) : await AsyncStorage.getItem(TOKEN_KEY);
+  if (!t && useSecure) {
+    // one-time migration from AsyncStorage → SecureStore
+    t = await AsyncStorage.getItem(TOKEN_KEY);
+    if (t) {
+      await SecureStore.setItemAsync(TOKEN_KEY, t);
+      await AsyncStorage.removeItem(TOKEN_KEY);
+    }
+  }
   inMemoryToken = t;
   return t;
 }

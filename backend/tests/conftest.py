@@ -14,7 +14,7 @@ BASE_URL = os.environ["EXPO_PUBLIC_BACKEND_URL"].rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN_EMAIL = "admin@freshcuts.com"
-ADMIN_PASSWORD = "Admin@123"
+ADMIN_PASSWORD = "Fc!LdZB5RH3sprvcI"
 
 
 @pytest.fixture(scope="session")

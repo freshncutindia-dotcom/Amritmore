@@ -109,10 +109,6 @@ export default function Auth() {
             </Text>
           </Pressable>
 
-          <View style={styles.hint}>
-            <Text style={styles.hintTxt}>Try admin@freshcuts.com / Admin@123 for admin access</Text>
-          </View>
-
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 22 }}>
             <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
             <Text style={{ color: theme.colors.onSurfaceMuted, fontSize: 12 }}>or</Text>
@@ -160,6 +156,4 @@ const styles = StyleSheet.create({
   btnTxt: { color: theme.colors.onBrand, fontWeight: "700", fontSize: 15 },
   err: { color: theme.colors.error, fontSize: 13, textAlign: "center" },
   toggle: { color: theme.colors.onSurfaceMuted, fontSize: 13 },
-  hint: { backgroundColor: theme.colors.brandTint, padding: 12, borderRadius: theme.radius.md, marginTop: 8 },
-  hintTxt: { fontSize: 11, color: theme.colors.brandDark, textAlign: "center" },
 });

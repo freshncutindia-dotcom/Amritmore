@@ -82,3 +82,12 @@ See `/app/memory/test_credentials.md`.
 
 ### Remaining backlog
 - Phase 5: Razorpay payments (P0); Notifications (P2); pre-cut images + CSV prices (blocked on user); split server.py into routers; RN-web shadow/pointerEvents deprecation warnings (cosmetic).
+
+## Phase: Security Audit + Fixes (June 2026) — DONE ✅
+Audit findings fixed & verified (iteration_16, 8/8 backend + full frontend e2e):
+- SEC-001: server-side pricing on /api/orders & /api/subscriptions (weight multiplier + live deals; express ₹49/scheduled ₹29 slot fee; handling ₹9) — client money fields ignored
+- SEC-002: admin password rotated → `Fc!LdZB5RH3sprvcI` (backend/.env, seed upserts hash on startup; see memory/test_credentials.md)
+- SEC-003: OTP mock hardened — only exact 123456, no dev_code in API response, 5-attempt cap. REAL SMS PROVIDER STILL PENDING before production.
+- SEC-004: strong random JWT secret; SEC-005: re.escape on cut_type regex
+- Hardening: login lockout (5 fails/15min per email → 429), generic Stripe errors, CORS allow_credentials=False, auth token in expo-secure-store on native (AsyncStorage web) with migration, removed admin-credential hint from auth.tsx
+Remaining (accepted for now): RN-web shadow*/pointerEvents deprecation warnings (cosmetic).

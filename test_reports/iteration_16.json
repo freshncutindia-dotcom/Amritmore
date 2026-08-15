@@ -1,0 +1,50 @@
+{
+  "summary": "Security-audit regression EXECUTED (previous iteration was static-only). Backend pytest: 8/8 PASSED at /app/backend/tests/test_security_audit.py (new admin login with rotated pw, old admin pw returns 401, throwaway-email brute-force -> 429 on 6th attempt, OTP send response has NO dev_code, wrong OTP rejected, correct 123456 logs in, OTP verify caps at 5 attempts then 429, tampered POST /orders body {price:0.01,total:1} is stored with server-recomputed subtotal + express fee ₹49 + handling ₹9 and real product price). Frontend Playwright verified end-to-end: /auth email login rejects old 'Admin@123' with visible 'Incorrect email or password' error; NEW password 'Fc!LdZB5RH3sprvcI' navigates to home and localStorage sets auth_token; reload keeps user logged in (profile-admin testID present after reload) -> web token persistence WORKS. Admin Panel loads with all 8 dashboard stat cards (Orders today, Revenue today, Open orders, Low stock, Total orders, Total revenue, Products, Customers) and 6 tabs (tab-overview/orders/products/deals/pincodes/inbox). OTP screen shows 'Dev mode — use code 123456' hint, wrong code 654321 shows 'Invalid OTP', 123456 logs in and reload keeps session. COD end-to-end: OTP login -> save address (400001 default) -> add 2 products from shop -> cart pincode-check shows 'Deliver to Fort/Colaba in 6h · ₹29 fee' -> proceed-checkout -> select ck-slot-express -> place-order-btn -> 'Order placed! 🎉' success screen (Order #D7081FC8, Express, COD). Cart totals: Subtotal ₹118 + Delivery ₹49 + Handling ₹9 = ₹176 shown on checkout (server-side pricing). Subscription create from cart: subscribe-basket-btn -> /subscribe with saved address auto-selected -> sub-submit -> 'Subscription active! 🎉 First delivery on 2026-08-22' success. Only one nit: auth-page hint text still reads 'Try admin@freshcuts.com / Admin@123 for admin access' — the OLD password. Long-standing RN-web warnings (shadow*, pointerEvents, defaultMuted DOM prop) remain non-blocking.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "auth.tsx hint chip",
+        "issue": "The chip below the Sign-in form still reads 'Try admin@freshcuts.com / Admin@123 for admin access' — but Admin@123 was rotated to Fc!LdZB5RH3sprvcI. Either remove the hint (better: don't leak admin credentials at all in production UI) or update it to the new password. Reference: /app/frontend/app/auth.tsx (search for 'Admin@123').",
+        "testID": "n/a",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "theme.shadow (RN web)", "issue": "Deprecation warning: 'shadow*' style props are deprecated. Use 'boxShadow'. Non-blocking, carried from iterations 13-15. Reference: /app/frontend/src/theme.ts"},
+      {"component": "pointerEvents prop", "issue": "Deprecation warning: props.pointerEvents is deprecated. Use style.pointerEvents. Non-blocking, carried from iterations 13-15."},
+      {"component": "defaultMuted DOM prop", "issue": "React warning: 'React does not recognize the defaultMuted prop on a DOM element'. Some Video/Image wrapper is passing a camelCase HTML attribute. Non-blocking. Carried from iteration 14."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_security_audit.py",
+    "/app/test_reports/pytest/security_audit_results.xml"
+  ],
+  "action_items": [
+    "Remove or update the auth-page hint that still reads 'Admin@123' — currently misleading. Best to not expose admin credentials in the UI at all.",
+    "OPTIONAL (long-standing) — migrate theme.shadow.* -> boxShadow to silence RN Web deprecation warnings.",
+    "OPTIONAL — replace props.pointerEvents with style.pointerEvents.",
+    "OPTIONAL — track down the defaultMuted DOM prop leak in a Video/Image wrapper."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~2157 lines — please split into routers (auth, otp, orders, subscriptions, admin_*) before adding more surface area.",
+    "Nice: OrderIn is accepted with user-supplied subtotal/total/delivery_fee/handling_fee fields but the server overwrites them from real product data and slot fee — the tampered-price test proves it works. Consider dropping these fields from OrderIn to reduce confusion, since they are always recomputed.",
+    "auth.tsx leaks the (old) admin credentials in the UI. Once the hint is removed/updated, ensure no automated tests rely on it."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_security_audit.py (new — 8 tests, all passing)",
+    "/app/backend/tests/conftest.py (updated ADMIN_PASSWORD constant to the new rotated value 'Fc!LdZB5RH3sprvcI' so admin_headers fixture used across the whole suite still works)",
+    "/app/test_reports/pytest/security_audit_results.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8 security-audit tests)", "frontend": "100% of scoped flows (email login old/new, OTP wrong+right, token persistence on reload, admin panel render, COD end-to-end with server-recomputed express+handling totals, subscription create with saved address)"},
+  "seed_data_creation": "One COD order (#D7081FC8, ₹176, express+COD) placed for a random OTP-only user in Mumbai/400001. One 'TEST User' default address left on that user. One weekly subscription (next delivery 2026-08-22) created for the same or another ephemeral OTP user. Backend tests also created ephemeral users prefixed sec_test_* and bf-test-*. All harmless test artifacts.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Security regression at /app/backend/tests/test_security_audit.py — 8 tests, uses fresh throwaway email per brute-force run, random 10-digit mobile per OTP run. Address create requires payload {label(literal),name,mobile,line1,area,pincode,is_default}. OrderIn requires {items:[{...unit,image required}],address(string),pincode,phone,delivery_slot_id='express',delivery_slot_label}. Frontend flow specifics: (1) cart requires pincode-input + check-pin-btn BEFORE proceed-checkout-btn is enabled — a saved default address is NOT auto-applied to the cart, user must re-enter pincode. Consider treating this as a UX gap in a future iteration. (2) The delivery-location modal on home page can be dismissed by entering pincode then Escape key. (3) auth-page hint still references old Admin@123 — cosmetic bug reported.",
+  "rca_of_issue": "No functional bugs found in this iteration. All security-audit changes (rotated admin password + old-pw lockout, login brute-force cap, no dev_code leakage in OTP response, OTP attempt cap, server-recomputed order/subscription pricing, web token persistence) are working correctly in both API and UI. The only cosmetic bug is /app/frontend/app/auth.tsx still shows a hint chip with the old 'Admin@123' credential — users would follow the hint and see 'Incorrect email or password'. Fix: remove the hint line entirely (do not expose admin credentials in UI) OR update to the new rotated password (less secure)."
+}

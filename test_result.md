@@ -185,3 +185,30 @@ frontend:
 agent_communication:
   - agent: "main"
     message: "Backend fully smoke-tested. Need frontend e2e for search suggestions/filters and subscription create/manage flows."
+
+## Session (June 2026) — Security Audit Fixes
+backend:
+  - task: "SEC-001 server-side pricing: /api/orders + /api/subscriptions recompute item prices (weight multiplier + live deals), subtotal, slot fee (express 49 / scheduled 29), handling 9, total. Client money fields ignored."
+    implemented: true
+    working: true
+    comment: "Verified: tampered total=1 order stored with correct server totals"
+  - task: "SEC-002 admin password rotated (backend/.env), seed now UPSERTS hash from env each startup. NEW PASSWORD in /app/memory/test_credentials.md (Fc!LdZB5RH3sprvcI)"
+    implemented: true
+    working: true
+  - task: "SEC-003 hardened OTP mock: response no longer returns dev_code, ONLY exact 123456 accepted, 5 attempts/request cap (429)"
+    implemented: true
+    working: true
+  - task: "SEC-004 strong random JWT secret (old tokens invalidated - users must re-login)"
+    implemented: true
+    working: true
+  - task: "SEC-005 re.escape on cut_type regex; login brute-force lockout 5 fails/15min (429); generic Stripe error messages; CORS allow_credentials=False"
+    implemented: true
+    working: true
+frontend:
+  - task: "Auth token now stored in expo-secure-store on native (AsyncStorage on web) with one-time migration; otp.tsx shows hardcoded 123456 hint instead of API dev_code"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/api.ts, /app/frontend/app/otp.tsx, /app/frontend/src/store.tsx"
+agent_communication:
+  - agent: "main"
+    message: "All backend security fixes verified via httpx. Need frontend regression: email login (NEW admin password), OTP login flow, place order (totals now come from server), admin panel access."
