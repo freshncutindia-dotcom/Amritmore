@@ -59,3 +59,17 @@ See `/app/memory/test_credentials.md`.
 ## Status
 - Backend: 41/41 tests passing (100%).
 - Frontend: all screens functional, drawer overlay works, recipe expansion works, cut image swap works.
+
+## Phase: Full Admin Control Panel (June 2026) — DONE ✅
+- **Email notifications (Emergent-managed, no user API key)**: Admin gets email for every new order + every customer support message. Notify address editable in Admin → Dashboard (default admin@freshcuts.com — placeholder; friendly error prompts admin to set a real inbox). "Send test email" button. Sends logged in db.email_log.
+- **Product management**: Add product (category/cuts/weights/stock/image), edit modal (name, description, price, stock, image, weights chips, cut types), availability switch (hidden from public /products when off), quick stock +/- ; order placement decrements stock.
+- **Admin dashboard (6 tabs in /admin)**: Dashboard (stat cards: orders/revenue today+total, open orders, low stock alerts <10, customers, unread messages banner; notification email settings), Orders (status filters, expandable cards, status flow Placed→Confirmed→Packed→Out for delivery→Delivered/Cancel; COD delivered auto-marks paid), Products, Deals, PINs, Inbox (customer messages, mark read/delete).
+- **Customer support**: /support screen (Contact Support in Profile) → POST /api/contact (auth, 5/hour throttle) → stored + emailed to admin.
+- Key endpoints: /api/admin/stats, /api/admin/orders[+/{id}/status], /api/admin/products/{id}[+/stock], /api/admin/messages, /api/admin/settings[+/test-email], /api/contact
+- Tested: iteration_14 (backend 20/21 → last issue fixed: friendly 400 for undeliverable test email), frontend all flows pass.
+
+### Remaining backlog (unchanged)
+- Phase 5: Razorpay payments (P0, playbook fetched earlier)
+- Phase 3: Powerful search (P1); Smart cart suggestions (P1); Subscriptions (P1)
+- Notifications system (P2); Pre-cut product images upload (blocked on user); CSV price update (blocked on user)
+- Refactor: split server.py (~1900 lines) into routers

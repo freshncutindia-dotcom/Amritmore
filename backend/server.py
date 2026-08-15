@@ -1,10 +1,17 @@
 import os
+import re
 import uuid
+import asyncio
+import ipaddress
 import logging
 from datetime import datetime, timedelta, timezone
+from html import escape
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import List, Optional, Literal, Dict
+from urllib.parse import urlparse
 
+import httpx
 import jwt
 from bcrypt import hashpw, gensalt, checkpw
 from dotenv import load_dotenv
@@ -114,6 +121,7 @@ class ProductIn(BaseModel):
     unit: str = "500g"
     image: str
     stock: int = 100
+    is_available: bool = True
     tags: List[str] = []
     available_cuts: List[str] = ["whole"]
     available_weights: List[str] = ["500g"]
@@ -792,8 +800,10 @@ async def list_delivery_slots():
 
 # --- Products ---
 @api.get("/products", response_model=List[Product])
-async def list_products(category: Optional[str] = None, cut_type: Optional[str] = None, q: Optional[str] = None):
+async def list_products(category: Optional[str] = None, cut_type: Optional[str] = None, q: Optional[str] = None, include_unavailable: bool = False):
     query = {}
+    if not include_unavailable:
+        query["is_available"] = {"$ne": False}
     if category and category != "all":
         query["category"] = category
     if cut_type and cut_type != "all":
@@ -879,6 +889,20 @@ async def create_order(body: OrderIn, user=Depends(get_current_user)):
     doc = order.dict()
     doc["created_at"] = doc["created_at"].isoformat()
     await db.orders.insert_one(doc)
+    # decrement stock for ordered items
+    for it in body.items:
+        await db.products.update_one(
+            {"id": it.product_id, "stock": {"$gte": it.quantity}},
+            {"$inc": {"stock": -it.quantity}},
+        )
+    # notify admin by email (non-blocking)
+    email_doc = order.dict()
+    email_doc["created_at"] = doc["created_at"]
+    asyncio.create_task(_send_admin_email_bg(
+        "order",
+        f"New order #{order.id[:8]} · ₹{order.total:.0f} · {order.payment_method.upper()}",
+        _order_email_html(email_doc),
+    ))
     return order
 
 
@@ -1020,6 +1044,387 @@ async def cancel_subscription(sub_id: str, user=Depends(get_current_user)):
     if result.matched_count == 0:
         raise HTTPException(404, "Subscription not found")
     return {"ok": True}
+
+
+# ================= EMAIL (Emergent managed) =================
+# Proxy base URL is a deliberate constant — never read from env.
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
+EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
+
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    """Structural guardrail gate (G2 + G3). Never weaken or bypass."""
+    scan = _EmailScan(); scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} ≠ real link host {real!r} (G3)")
+
+
+async def get_notify_email() -> str:
+    doc = await db.settings.find_one({"key": "notify_email"})
+    return ((doc or {}).get("value") or ADMIN_EMAIL).lower()
+
+
+async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
+    _assert_safe_email(subject, html)  # G2-G3 gate — never skip
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    async with httpx.AsyncClient(timeout=30) as http_client:
+        resp = await http_client.post(
+            f"{EMAIL_BASE_URL}/api/v1/email/send",
+            headers={"X-Email-Key": EMAIL_KEY},
+            json=payload,
+        )
+    resp.raise_for_status()
+    return resp.json().get("id")
+
+
+async def _send_admin_email_bg(kind: str, subject: str, html: str):
+    """Fire-and-forget admin notification. Failures are logged, never break the request."""
+    log = {"id": str(uuid.uuid4()), "kind": kind, "subject": subject,
+           "created_at": datetime.now(timezone.utc).isoformat()}
+    try:
+        to = await get_notify_email()
+        email_id = await send_email(to=to, subject=subject, html=html)
+        log.update({"to": to, "ok": True, "email_id": email_id})
+        logger.info(f"[email] {kind} sent to {to} ({email_id})")
+    except Exception as e:
+        log.update({"ok": False, "error": str(e)})
+        logger.error(f"[email] {kind} failed: {e}")
+    try:
+        await db.email_log.insert_one(log)
+    except Exception:
+        pass
+
+
+_EMAIL_FOOTER = (
+    '<p style="font-size:12px;color:#888;margin-top:16px">Sent by FreshCuts admin notifications. '
+    'We never ask for passwords or card details by email.</p>'
+)
+
+
+def _order_email_html(o: dict) -> str:
+    rows = "".join(
+        f'<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">{escape(str(it.get("name", "")))} '
+        f'<span style="color:#888">({escape(str(it.get("cut_type", "")))} · {escape(str(it.get("unit", "")))})</span></td>'
+        f'<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">×{int(it.get("quantity", 1))}</td>'
+        f'<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">₹{float(it.get("price", 0)) * int(it.get("quantity", 1)):.0f}</td></tr>'
+        for it in o.get("items", [])
+    )
+    slot = o.get("delivery_slot_label") or "—"
+    return (
+        f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#222">'
+        f'<h2 style="margin:0 0 4px">🛒 New order received</h2>'
+        f'<p style="margin:0 0 16px;color:#666">Order <strong>#{escape(str(o.get("id", ""))[:8])}</strong> · '
+        f'{escape(str(o.get("payment_method", "")).upper())} · payment {escape(str(o.get("payment_status", "")))}</p>'
+        f'<table width="100%" style="border-collapse:collapse;font-size:14px">{rows}'
+        f'<tr><td style="padding:6px 8px" colspan="2">Subtotal</td><td style="padding:6px 8px;text-align:right">₹{float(o.get("subtotal", 0)):.0f}</td></tr>'
+        f'<tr><td style="padding:6px 8px" colspan="2">Delivery + handling</td><td style="padding:6px 8px;text-align:right">₹{float(o.get("delivery_fee", 0)) + float(o.get("handling_fee", 0)):.0f}</td></tr>'
+        f'<tr><td style="padding:6px 8px;font-weight:bold" colspan="2">Total</td><td style="padding:6px 8px;text-align:right;font-weight:bold">₹{float(o.get("total", 0)):.0f}</td></tr></table>'
+        f'<h3 style="margin:16px 0 4px">Customer</h3>'
+        f'<p style="margin:0;font-size:14px;color:#444">{escape(str(o.get("user_email", "")))}<br/>'
+        f'📞 {escape(str(o.get("phone", "")))}<br/>'
+        f'📍 {escape(str(o.get("address", "")))} — {escape(str(o.get("pincode", "")))}<br/>'
+        f'🚚 Slot: {escape(str(slot))}</p>'
+        f'{_EMAIL_FOOTER}</td></tr></table>'
+    )
+
+
+def _contact_email_html(m: dict) -> str:
+    mobile = m.get("mobile") or "—"
+    return (
+        f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#222">'
+        f'<h2 style="margin:0 0 4px">📩 New customer message</h2>'
+        f'<p style="margin:0 0 16px;color:#666">Subject: <strong>{escape(str(m.get("subject", "")))}</strong></p>'
+        f'<p style="font-size:14px;white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:8px">{escape(str(m.get("message", "")))}</p>'
+        f'<h3 style="margin:16px 0 4px">From</h3>'
+        f'<p style="margin:0;font-size:14px;color:#444">{escape(str(m.get("user_name", "")))}<br/>'
+        f'{escape(str(m.get("user_email", "")))}<br/>📞 {escape(str(mobile))}</p>'
+        f'{_EMAIL_FOOTER}</td></tr></table>'
+    )
+
+
+# ================= CONTACT / SUPPORT =================
+class ContactIn(BaseModel):
+    subject: str = Field(..., min_length=3, max_length=120)
+    message: str = Field(..., min_length=5, max_length=2000)
+
+
+@api.post("/contact")
+async def submit_contact(body: ContactIn, user=Depends(get_current_user)):
+    since = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    recent = await db.contact_messages.count_documents({
+        "user_email": user["email"], "created_at": {"$gte": since},
+    })
+    if recent >= 5:
+        raise HTTPException(429, "Too many messages. Please try again in an hour.")
+    msg = {
+        "id": str(uuid.uuid4()),
+        "user_email": user["email"],
+        "user_name": user.get("name", ""),
+        "mobile": user.get("mobile_number"),
+        "subject": body.subject.strip(),
+        "message": body.message.strip(),
+        "read": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.contact_messages.insert_one(dict(msg))
+    asyncio.create_task(_send_admin_email_bg(
+        "contact", f"Customer message: {msg['subject'][:60]}", _contact_email_html(msg),
+    ))
+    return {"ok": True, "id": msg["id"]}
+
+
+# ================= ADMIN: DASHBOARD =================
+@api.get("/admin/stats")
+async def admin_stats(_=Depends(require_admin)):
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    orders_today = await db.orders.count_documents({"created_at": {"$gte": today_start}})
+    rev_today = await db.orders.aggregate([
+        {"$match": {"created_at": {"$gte": today_start}, "status": {"$ne": "cancelled"}}},
+        {"$group": {"_id": None, "sum": {"$sum": "$total"}}},
+    ]).to_list(1)
+    rev_total = await db.orders.aggregate([
+        {"$match": {"status": {"$ne": "cancelled"}}},
+        {"$group": {"_id": None, "sum": {"$sum": "$total"}}},
+    ]).to_list(1)
+    pending_orders = await db.orders.count_documents({"status": {"$in": ["pending", "paid", "confirmed", "packed", "out-for-delivery"]}})
+    total_orders = await db.orders.count_documents({})
+    total_products = await db.products.count_documents({})
+    low_stock = await db.products.find(
+        {"stock": {"$lt": 10}}, {"_id": 0, "id": 1, "name": 1, "stock": 1, "unit": 1, "category": 1},
+    ).sort("stock", 1).to_list(8)
+    low_stock_count = await db.products.count_documents({"stock": {"$lt": 10}})
+    unavailable_count = await db.products.count_documents({"is_available": False})
+    total_users = await db.users.count_documents({"role": {"$ne": "admin"}})
+    active_deals = await db.deals.count_documents({"active": True})
+    unread_messages = await db.contact_messages.count_documents({"read": False})
+    return {
+        "orders_today": orders_today,
+        "revenue_today": round(float(rev_today[0]["sum"]) if rev_today else 0.0, 2),
+        "revenue_total": round(float(rev_total[0]["sum"]) if rev_total else 0.0, 2),
+        "pending_orders": pending_orders,
+        "total_orders": total_orders,
+        "total_products": total_products,
+        "low_stock": low_stock,
+        "low_stock_count": low_stock_count,
+        "unavailable_count": unavailable_count,
+        "total_users": total_users,
+        "active_deals": active_deals,
+        "unread_messages": unread_messages,
+    }
+
+
+# ================= ADMIN: ORDERS =================
+@api.get("/admin/orders", response_model=List[Order])
+async def admin_list_orders(status: Optional[str] = None, limit: int = 100, _=Depends(require_admin)):
+    q = {}
+    if status and status != "all":
+        q["status"] = status
+    docs = await db.orders.find(q, {"_id": 0}).sort("created_at", -1).to_list(min(limit, 300))
+    return [Order(**d) for d in docs]
+
+
+class OrderStatusIn(BaseModel):
+    status: Literal["confirmed", "packed", "out-for-delivery", "delivered", "cancelled"]
+
+
+@api.patch("/admin/orders/{order_id}/status", response_model=Order)
+async def admin_update_order_status(order_id: str, body: OrderStatusIn, _=Depends(require_admin)):
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Order not found")
+    update = {"status": body.status}
+    if body.status == "delivered" and order.get("payment_method") == "cod":
+        update["payment_status"] = "paid"
+    await db.orders.update_one({"id": order_id}, {"$set": update})
+    return Order(**{**order, **update})
+
+
+# ================= ADMIN: PRODUCTS =================
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[Literal["cut-veg", "cut-fruit", "whole", "organic", "ready-mix"]] = None
+    cut_type: Optional[str] = None
+    price: Optional[float] = None
+    unit: Optional[str] = None
+    image: Optional[str] = None
+    stock: Optional[int] = None
+    is_available: Optional[bool] = None
+    tags: Optional[List[str]] = None
+    available_cuts: Optional[List[str]] = None
+    available_weights: Optional[List[str]] = None
+    local_name: Optional[str] = None
+
+
+@api.patch("/admin/products/{product_id}", response_model=Product)
+async def admin_update_product(product_id: str, body: ProductUpdate, _=Depends(require_admin)):
+    doc = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Product not found")
+    payload = {k: v for k, v in body.dict().items() if v is not None}
+    if not payload:
+        return Product(**doc)
+    # Enforce category rules: Whole & Organic are weight-only
+    category = payload.get("category", doc.get("category"))
+    if category in ("whole", "organic"):
+        payload["available_cuts"] = ["whole"]
+        payload["cut_type"] = "whole"
+        if not payload.get("available_weights"):
+            payload["available_weights"] = doc.get("available_weights") or ["250g", "500g", "1kg"]
+    if "stock" in payload:
+        payload["stock"] = max(0, int(payload["stock"]))
+    await db.products.update_one({"id": product_id}, {"$set": payload})
+    updated = await db.products.find_one({"id": product_id}, {"_id": 0})
+    return Product(**updated)
+
+
+class StockAdjustIn(BaseModel):
+    delta: int
+
+
+@api.patch("/admin/products/{product_id}/stock", response_model=Product)
+async def admin_adjust_stock(product_id: str, body: StockAdjustIn, _=Depends(require_admin)):
+    doc = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Product not found")
+    new_stock = max(0, int(doc.get("stock", 0)) + body.delta)
+    await db.products.update_one({"id": product_id}, {"$set": {"stock": new_stock}})
+    doc["stock"] = new_stock
+    return Product(**doc)
+
+
+# ================= ADMIN: MESSAGES INBOX =================
+@api.get("/admin/messages")
+async def admin_list_messages(_=Depends(require_admin)):
+    return await db.contact_messages.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+
+@api.patch("/admin/messages/{msg_id}/read")
+async def admin_mark_message_read(msg_id: str, _=Depends(require_admin)):
+    res = await db.contact_messages.update_one({"id": msg_id}, {"$set": {"read": True}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Message not found")
+    return {"ok": True}
+
+
+@api.delete("/admin/messages/{msg_id}")
+async def admin_delete_message(msg_id: str, _=Depends(require_admin)):
+    res = await db.contact_messages.delete_one({"id": msg_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Message not found")
+    return {"ok": True}
+
+
+# ================= ADMIN: SETTINGS =================
+class SettingsIn(BaseModel):
+    notify_email: EmailStr
+
+
+@api.get("/admin/settings")
+async def admin_get_settings(_=Depends(require_admin)):
+    return {"notify_email": await get_notify_email()}
+
+
+@api.put("/admin/settings")
+async def admin_put_settings(body: SettingsIn, _=Depends(require_admin)):
+    email = body.notify_email.lower()
+    await db.settings.update_one({"key": "notify_email"}, {"$set": {"value": email}}, upsert=True)
+    return {"notify_email": email}
+
+
+@api.post("/admin/settings/test-email")
+async def admin_test_email(_=Depends(require_admin)):
+    to = await get_notify_email()
+    html = (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#222">'
+        '<h2 style="margin:0 0 8px">✅ Test notification</h2>'
+        '<p style="font-size:14px">Your FreshCuts admin notifications are working. '
+        'You will receive an email here for every new order and customer message.</p>'
+        f'{_EMAIL_FOOTER}</td></tr></table>'
+    )
+    try:
+        email_id = await send_email(to=to, subject="FreshCuts — test notification", html=html)
+    except httpx.HTTPStatusError as e:
+        logger.error(f"[email] test failed: {e}")
+        if 400 <= e.response.status_code < 500:
+            raise HTTPException(
+                400,
+                f"Could not deliver to {to} — this address doesn't look deliverable. "
+                "Enter a real inbox you own (e.g. your Gmail), tap Save, then try again.",
+            )
+        raise HTTPException(502, "Email service is temporarily unavailable. Please try again shortly.")
+    except Exception as e:
+        logger.error(f"[email] test failed: {e}")
+        raise HTTPException(502, f"Email send failed: {e}")
+    return {"ok": True, "to": to, "email_id": email_id}
 
 
 app.include_router(api)

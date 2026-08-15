@@ -1,0 +1,57 @@
+{
+  "summary": "FreshCuts Admin Panel + Contact/Support tested end-to-end. Backend pytest: 20/21 passed (1 real backend failure — /api/admin/settings/test-email returns 502 because Emergent email proxy rejects sends to admin@freshcuts.com with 422 'unknown', since freshcuts.com is not a deliverable domain in Resend). All other admin endpoints work: admin/stats shape+auth, admin/orders list+filter+status transitions (COD delivered => payment_status='paid'), admin/products PATCH (name/price/stock/weights/cuts) with whole/organic auto-forcing available_cuts=['whole'], admin/products/{id}/stock delta flooring at 0, public /products excludes is_available=false while ?include_unavailable=true includes them, POST /contact validation+auth+storage+5/hour throttle, admin/messages list/read/delete, admin/settings GET/PUT with EmailStr validation. POST /orders regression: successfully places COD order, decrements product stock, and fires admin email (no 500). Frontend: admin panel loads with all 6 tabs (Dashboard/Orders/Products/Deals/PINs/Inbox), Dashboard shows stat cards + 'Notification email' card (ov-notify-email/ov-save-email/ov-test-email). Test email button visibly shows 'Request failed (502)' in ov-email-status which mirrors the backend proxy failure. Orders tab renders filter chips (orders-filter-*) and order cards with confirm/cancel action buttons. Products tab renders search (prod-search), +/- stock, availability switch, edit/delete/add buttons. Inbox lists all customer messages with mark-read/delete. Customer /support flow works end-to-end: signup -> Profile -> Contact Support -> subject+message -> submit -> success screen shown; message immediately visible in admin Inbox. notify_email verified restored to admin@freshcuts.com after tests. Two RN Web deprecation warnings persist (shadow*, pointerEvents) — non-blocking, already noted in prior iteration. One React DOM warning: 'React does not recognize the defaultMuted prop on a DOM element' (video/audio element getting non-lowercase prop).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/admin/settings/test-email",
+        "issue": "Returns 502 when notify_email='admin@freshcuts.com' (the required default). Emergent email proxy (https://integrations.emergentagent.com/api/v1/email/send) responds with HTTP 422 'unknown' because freshcuts.com is a fictitious domain not deliverable by Resend. Backend correctly wraps and re-raises as 502. Test emails work when notify_email is set to a real address (verified working earlier with delivered@resend.dev per backend logs). Main agent's smoke-test likely used a different notify_email during initial verification.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Dashboard -> Send test email",
+        "issue": "Clicking 'Send test email' with default notify_email=admin@freshcuts.com always shows 'Request failed (502)' — user sees a failure even though the notification pipeline is fine. This is the visible symptom of the backend/Emergent-proxy issue above. Recommend the notification email card show a clearer hint like 'Use a real deliverable address' or validate before enabling the test button.",
+        "affected_testIDs": ["ov-test-email", "ov-email-status"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "theme.shadow (RN web)", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' — coming from src/theme.ts shadow presets applied via StyleSheet. Not blocking. (Repeated from iteration_13.)"},
+      {"component": "pointerEvents prop", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Non-blocking. (Repeated from iteration_13.)"},
+      {"component": "DOM prop casing", "issue": "React warning: 'React does not recognize the defaultMuted prop on a DOM element' — some component (likely a Video/Audio wrapper) passes a camelCase HTML attribute. Investigate uses of muted/defaultMuted in video components."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_panel.py",
+    "/app/test_reports/pytest/admin_panel_results.xml"
+  ],
+  "action_items": [
+    "Fix /api/admin/settings/test-email for admin@freshcuts.com. Options: (a) validate/warn that fake TLDs are not deliverable, (b) use a real developer inbox as the initial seeded notify_email, (c) capture the Emergent proxy 422 as a friendly 400 with the message 'Recipient not accepted by mail provider — use a deliverable address'. Currently returning generic 502 to the UI which shows as 'Request failed (502)'.",
+    "Note in admin UI that notify_email must be a real, deliverable inbox; disable the test button until saved value validates.",
+    "Optional: migrate theme.shadow.* -> boxShadow to silence RN Web deprecation warnings.",
+    "Optional: replace `pointerEvents` prop usages with `style={{ pointerEvents: ... }}` for RN Web.",
+    "Track down the `defaultMuted` DOM prop warning (likely in a Video wrapper) and lowercase it or drop the prop."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~1908 lines — please split into routers (auth, products, orders, admin_orders, admin_products, admin_messages, admin_settings, contact) before adding more admin features.",
+    "PATCH /api/admin/orders/{id}/status has no `pending` in Literal, so admin cannot revert to pending — that's likely intentional but worth confirming.",
+    "POST /orders decrements stock with `{stock: {$gte: quantity}}` guard but if guard fails the order still succeeds without decrementing. Consider surfacing this as a 409/400 (insufficient stock) instead of silently completing.",
+    "/api/admin/stats aggregates orders unfiltered — for larger datasets, add index on {created_at: -1} and {status: 1}.",
+    "GET /api/admin/messages returns all messages unpaginated (limit 200) — add pagination + unread-first query params."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_panel.py (new — 21 tests)",
+    "/app/test_reports/pytest/admin_panel_results.xml (new)"
+  ],
+  "success_rate": {"backend": "95% (20/21 — the 1 failure is a legitimate backend/integration issue)", "frontend": "100% of scoped flows verified"},
+  "seed_data_creation": "Tests create ephemeral users prefixed TEST_admin_panel_* and TEST_throttle_*, one order, one address, and a handful of contact_messages (TEST subject / TEST throttle *). The test-created contact message is deleted at end of test. Throttle-test messages (5 per user, single-user-per-run) remain in db.contact_messages — visible in admin Inbox but harmless. notify_email restored to admin@freshcuts.com at end of run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend admin tests are at /app/backend/tests/test_admin_panel.py. Do NOT set notify_email to admin@freshcuts.com if you want the /api/admin/settings/test-email endpoint to succeed — use `delivered@resend.dev` (Resend sandbox) or another deliverable address. The test file already accounts for that by restoring notify_email at teardown. The frontend 'Send test email' button on the admin overview will keep showing 502 until either (a) the default notify_email is switched to a deliverable address, or (b) the backend maps the Emergent-proxy 422 to a friendlier error and the UI displays it clearly.",
+  "rca_of_issue": "Root cause of the single failing test/UI action: Emergent's email integration proxy (Resend under the hood) rejects sends to 'admin@freshcuts.com' with HTTP 422 'unknown' because 'freshcuts.com' is not a valid deliverable domain. FastAPI catches the exception and re-raises as 502 (see server.py:1416-1418), which the frontend displays literally as 'Request failed (502)'. Reproduce: PUT /api/admin/settings notify_email=admin@freshcuts.com then POST /api/admin/settings/test-email -> 502. Mitigation: (a) change default notify_email to a real deliverable inbox at seed time, (b) validate deliverability at PUT time, or (c) surface the underlying provider error text (e.g. '422 unknown recipient') back to the admin instead of a raw 502."
+}
