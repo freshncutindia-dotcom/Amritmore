@@ -244,7 +244,7 @@ function Home() {
             <LinearGradient colors={[theme.colors.brand, theme.colors.brandDark]} style={StyleSheet.absoluteFillObject} />
             <View style={{ flex: 1, padding: 18 }}>
               <View style={styles.subBadge}><Text style={styles.subBadgeTxt}>NEW · Subscribe & Save</Text></View>
-              <Text style={styles.subH1}>Weekly veggie box{"\n"}from ₹599</Text>
+              <Text style={styles.subH1}>Your basket,{"\n"}delivered on repeat</Text>
               <View style={styles.subArrowRow}>
                 <Text style={styles.subCta}>Set up your box</Text>
                 <Ionicons name="arrow-forward" size={16} color="#fff" />

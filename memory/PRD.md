@@ -73,3 +73,12 @@ See `/app/memory/test_credentials.md`.
 - Phase 3: Powerful search (P1); Smart cart suggestions (P1); Subscriptions (P1)
 - Notifications system (P2); Pre-cut product images upload (blocked on user); CSV price update (blocked on user)
 - Refactor: split server.py (~1900 lines) into routers
+
+## Phase: Smart Search + Subscriptions (June 2026) — DONE ✅
+- **Smart search (Shop tab)**: debounced auto-suggest dropdown with product thumbnails, local-name synonyms (dhaniya→coriander, bhindi→okra, aloo→potato, ~50 mappings in SYNONYMS dict in server.py), "Also matching" hint; filter sheet (price range chips, in-stock toggle) + active-filter dot. Endpoints: GET /api/search/suggest?q=, /api/products now supports min_price/max_price/in_stock.
+- **Subscriptions (custom basket, COD)**: build basket from cart → /subscribe (qty edit, frequency Daily/Alternate/Weekly + weekday, start date, saved-address picker, per-delivery pricing). Manage at /subscriptions (pause/resume, skip next, two-tap cancel). Hourly backend loop (IST dates) auto-generates COD orders (source="subscription", 🔁 badge in admin Orders), decrements stock, emails admin. Admin: GET /api/admin/subscriptions, POST /api/admin/subscriptions/run (force), active_subscriptions stat card. LEGACY box-based subscription system (BOXES, /subscriptions/boxes) REMOVED; old subscribe.tsx rewritten. Entry points: home banner, cart "Subscribe & repeat", profile "My Subscriptions", side drawer.
+- Fixed: cart persistence race in store.tsx (write gated on hydration `ready`).
+- Tested: iteration_15 — backend 23/23 pytest + full frontend e2e pass.
+
+### Remaining backlog
+- Phase 5: Razorpay payments (P0); Notifications (P2); pre-cut images + CSV prices (blocked on user); split server.py into routers; RN-web shadow/pointerEvents deprecation warnings (cosmetic).

@@ -74,6 +74,8 @@ export default function AdminOverview({ goTo }: { goTo: (tab: string) => void })
         <Stat label="Total revenue" value={`₹${Math.round(stats.revenue_total)}`} icon="trending-up" color={theme.colors.success} />
         <Stat label="Products" value={stats.total_products} icon="leaf" color={theme.colors.brand} onPress={() => goTo("products")} />
         <Stat label="Customers" value={stats.total_users} icon="people" color={theme.colors.accent} />
+        <Stat label="Active subscriptions" value={stats.active_subscriptions ?? 0} icon="repeat" color={theme.colors.brandDark} />
+        <Stat label="Active deals" value={stats.active_deals} icon="pricetag" color={theme.colors.warning} onPress={() => goTo("deals")} />
       </View>
 
       {stats.low_stock?.length > 0 && (

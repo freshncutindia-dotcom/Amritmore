@@ -137,6 +137,15 @@ function CartScreen() {
             <Text style={styles.totalVal}>₹{finalTotal.toFixed(0)}</Text>
           </View>
           <Pressable
+            testID="subscribe-basket-btn"
+            onPress={() => (user ? router.push("/subscribe") : router.push({ pathname: "/otp", params: { redirect: "/subscribe" } }))}
+            style={styles.subLink}
+          >
+            <Ionicons name="repeat" size={15} color={theme.colors.brandDark} />
+            <Text style={styles.subLinkTxt}>Subscribe & get this basket on repeat</Text>
+            <Ionicons name="chevron-forward" size={14} color={theme.colors.brandDark} />
+          </Pressable>
+          <Pressable
             testID="proceed-checkout-btn"
             onPress={proceed}
             disabled={!pinResult?.serviceable}

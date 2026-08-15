@@ -4,7 +4,7 @@ import uuid
 import asyncio
 import ipaddress
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
@@ -179,6 +179,8 @@ class Order(OrderIn):
     status: Literal["pending", "paid", "confirmed", "packed", "out-for-delivery", "delivered", "cancelled"] = "pending"
     payment_status: Literal["pending", "paid", "failed"] = "pending"
     stripe_session_id: Optional[str] = None
+    source: Optional[str] = None  # e.g. "subscription"
+    subscription_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -239,75 +241,6 @@ class DealOut(BaseModel):
 
 
 # --- Subscription models ---
-class SubscriptionIn(BaseModel):
-    box_type: Literal["essentials", "mixed", "premium"]
-    frequency: Literal["weekly", "biweekly"]
-    delivery_day: str = "Monday"
-    pincode: str
-    address: str
-    phone: str
-
-
-class Subscription(SubscriptionIn):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    user_email: str
-    status: Literal["active", "paused", "cancelled"] = "active"
-    price_per_box: float
-    box_name: str
-    box_items: List[str] = []
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    next_delivery: datetime = Field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=3))
-
-
-BOXES: Dict[str, Dict] = {
-    "essentials": {
-        "name": "Essentials Box",
-        "price": 599,
-        "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=800&q=80",
-        "tag": "Save ₹120/box",
-        "items": [
-            "1kg Roma Tomatoes",
-            "500g Yellow Onions",
-            "1kg Baby Potatoes",
-            "500g Rainbow Carrots",
-            "1 Purple Cabbage",
-            "250g Baby Spinach",
-        ],
-    },
-    "mixed": {
-        "name": "Mixed Veg + Fruits",
-        "price": 999,
-        "image": "https://images.unsplash.com/photo-1490474504059-bf2db5ab2348?w=800&q=80",
-        "tag": "Most popular · Save ₹200/box",
-        "items": [
-            "500g Fuji Apples",
-            "500g Alphonso Mango",
-            "1 Pineapple",
-            "1kg Tomatoes",
-            "500g Bell Peppers",
-            "1 Cauliflower",
-            "500g Carrots",
-        ],
-    },
-    "premium": {
-        "name": "Premium Chef Box",
-        "price": 1499,
-        "image": "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
-        "tag": "Chef's pick · Save ₹350/box",
-        "items": [
-            "Pre-cut Onions (500g diced)",
-            "Pre-cut Potatoes (500g cubed)",
-            "Pre-cut Carrots (250g julienne)",
-            "Pre-cut Bell Peppers (250g julienne)",
-            "Stir-fry Mix (300g)",
-            "Salad Bowl Mix (250g)",
-            "Diced Mango (250g)",
-            "Watermelon Cubes (500g)",
-        ],
-    },
-}
-
-
 # ============== AUTH HELPERS ==============
 def hash_pw(pw: str) -> str:
     return hashpw(pw.encode("utf-8"), gensalt()).decode("utf-8")
@@ -772,7 +705,7 @@ async def list_delivery_slots():
     Returns available slots for the next 24 hours.
     Express window is only offered until ~7 PM; scheduled slots always available for next-day.
     """
-    from datetime import date, timedelta as td
+    from datetime import timedelta as td
     now = datetime.now(timezone.utc)
     # IST offset for the day calculation (approx)
     ist_hour = (now.hour + 5) % 24  # very rough — for MVP messaging
@@ -799,8 +732,68 @@ async def list_delivery_slots():
 
 
 # --- Products ---
+SYNONYMS: Dict[str, str] = {
+    "aloo": "potato", "batata": "potato", "pyaz": "onion", "kanda": "onion", "tamatar": "tomato",
+    "gajar": "carrot", "palak": "spinach", "gobi": "cauliflower", "phool gobi": "cauliflower",
+    "patta gobi": "cabbage", "band gobi": "cabbage", "matar": "peas", "adrak": "ginger",
+    "lehsun": "garlic", "lahsun": "garlic", "shimla mirch": "capsicum", "baingan": "brinjal",
+    "kheera": "cucumber", "kakdi": "cucumber", "nimbu": "lemon", "dhaniya": "coriander",
+    "kothimbir": "coriander", "hara dhaniya": "coriander", "bhindi": "okra", "lady finger": "okra",
+    "mirchi": "chilli", "hari mirch": "chilli", "chukandar": "beetroot", "beet": "beetroot",
+    "shakarkand": "sweet potato", "mooli": "radish", "kaddu": "pumpkin", "lauki": "bottle gourd",
+    "doodhi": "bottle gourd", "karela": "bitter gourd", "torai": "ridge gourd", "turai": "ridge gourd",
+    "bhutta": "corn", "makka": "corn", "methi": "fenugreek", "pudina": "mint", "sem": "beans",
+    "arbi": "colocasia", "kela": "banana", "seb": "apple", "anar": "pomegranate", "anaar": "pomegranate",
+    "angoor": "grapes", "papita": "papaya", "santra": "orange", "narangi": "orange", "aam": "mango",
+    "tarbooj": "watermelon", "kharbooja": "muskmelon", "ananas": "pineapple", "amrud": "guava",
+    "chikoo": "sapota", "strawberi": "strawberry", "mosambi": "sweet lime", "nariyal": "coconut",
+}
+
+
+def _expand_terms(q: str) -> List[str]:
+    """Expand a search query with local-language synonyms (e.g. dhaniya -> coriander)."""
+    ql = q.strip().lower()
+    terms = [ql]
+    for local, english in SYNONYMS.items():
+        if ql in local or local.startswith(ql):
+            if english not in terms:
+                terms.append(english)
+    return terms
+
+
+def _text_clauses(terms: List[str]) -> List[dict]:
+    clauses = []
+    for t in terms:
+        rx = {"$regex": re.escape(t), "$options": "i"}
+        clauses += [{"name": rx}, {"local_name": rx}, {"sku": rx}, {"tags": rx}]
+    return clauses
+
+
+@api.get("/search/suggest")
+async def search_suggest(q: str = ""):
+    ql = q.strip().lower()
+    if len(ql) < 2:
+        return {"suggestions": [], "expanded": []}
+    terms = _expand_terms(ql)
+    docs = await db.products.find(
+        {"is_available": {"$ne": False}, "$or": _text_clauses(terms)},
+        {"_id": 0, "id": 1, "name": 1, "local_name": 1, "image": 1, "price": 1, "unit": 1, "category": 1, "stock": 1},
+    ).to_list(30)
+    # prefix matches first, then others
+    docs.sort(key=lambda d: (0 if d["name"].lower().startswith(ql) else 1, d["name"]))
+    return {"suggestions": docs[:8], "expanded": terms[1:]}
+
+
 @api.get("/products", response_model=List[Product])
-async def list_products(category: Optional[str] = None, cut_type: Optional[str] = None, q: Optional[str] = None, include_unavailable: bool = False):
+async def list_products(
+    category: Optional[str] = None,
+    cut_type: Optional[str] = None,
+    q: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    in_stock: Optional[bool] = None,
+    include_unavailable: bool = False,
+):
     query = {}
     if not include_unavailable:
         query["is_available"] = {"$ne": False}
@@ -809,11 +802,16 @@ async def list_products(category: Optional[str] = None, cut_type: Optional[str] 
     if cut_type and cut_type != "all":
         query["available_cuts"] = {"$regex": cut_type, "$options": "i"}
     if q:
-        query["$or"] = [
-            {"name": {"$regex": q, "$options": "i"}},
-            {"local_name": {"$regex": q, "$options": "i"}},
-            {"sku": {"$regex": q, "$options": "i"}},
-        ]
+        query["$or"] = _text_clauses(_expand_terms(q))
+    price_q = {}
+    if min_price is not None:
+        price_q["$gte"] = min_price
+    if max_price is not None:
+        price_q["$lte"] = max_price
+    if price_q:
+        query["price"] = price_q
+    if in_stock:
+        query["stock"] = {"$gt": 0}
     docs = await db.products.find(query, {"_id": 0}).to_list(500)
     return [Product(**d) for d in docs]
 
@@ -986,64 +984,6 @@ async def payment_success(order_id: str, session_id: str):
 @api.get("/payments/cancel")
 async def payment_cancel(order_id: str):
     return {"ok": False, "order_id": order_id, "message": "Payment cancelled."}
-
-
-# --- Subscriptions ---
-@api.get("/subscriptions/boxes")
-async def list_boxes():
-    return [{"id": k, **v} for k, v in BOXES.items()]
-
-
-@api.post("/subscriptions", response_model=Subscription)
-async def create_subscription(body: SubscriptionIn, user=Depends(get_current_user)):
-    pc = await db.pincodes.find_one({"pincode": body.pincode})
-    if not pc:
-        raise HTTPException(400, "Pincode not serviceable")
-    box = BOXES.get(body.box_type)
-    if not box:
-        raise HTTPException(400, "Invalid box type")
-    days_ahead = 7 if body.frequency == "weekly" else 14
-    sub = Subscription(
-        user_email=user["email"],
-        price_per_box=float(box["price"]),
-        box_name=box["name"],
-        box_items=box["items"],
-        next_delivery=datetime.now(timezone.utc) + timedelta(days=min(days_ahead, 3)),
-        **body.dict(),
-    )
-    doc = sub.dict()
-    doc["created_at"] = doc["created_at"].isoformat()
-    doc["next_delivery"] = doc["next_delivery"].isoformat()
-    await db.subscriptions.insert_one(doc)
-    return sub
-
-
-@api.get("/subscriptions", response_model=List[Subscription])
-async def my_subscriptions(user=Depends(get_current_user)):
-    docs = await db.subscriptions.find({"user_email": user["email"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
-    return [Subscription(**d) for d in docs]
-
-
-@api.post("/subscriptions/{sub_id}/pause")
-async def pause_subscription(sub_id: str, user=Depends(get_current_user)):
-    result = await db.subscriptions.update_one(
-        {"id": sub_id, "user_email": user["email"]},
-        {"$set": {"status": "paused"}},
-    )
-    if result.matched_count == 0:
-        raise HTTPException(404, "Subscription not found")
-    return {"ok": True}
-
-
-@api.delete("/subscriptions/{sub_id}")
-async def cancel_subscription(sub_id: str, user=Depends(get_current_user)):
-    result = await db.subscriptions.update_one(
-        {"id": sub_id, "user_email": user["email"]},
-        {"$set": {"status": "cancelled"}},
-    )
-    if result.matched_count == 0:
-        raise HTTPException(404, "Subscription not found")
-    return {"ok": True}
 
 
 # ================= EMAIL (Emergent managed) =================
@@ -1264,6 +1204,7 @@ async def admin_stats(_=Depends(require_admin)):
     unavailable_count = await db.products.count_documents({"is_available": False})
     total_users = await db.users.count_documents({"role": {"$ne": "admin"}})
     active_deals = await db.deals.count_documents({"active": True})
+    active_subscriptions = await db.subscriptions.count_documents({"status": "active"})
     unread_messages = await db.contact_messages.count_documents({"read": False})
     return {
         "orders_today": orders_today,
@@ -1277,6 +1218,7 @@ async def admin_stats(_=Depends(require_admin)):
         "unavailable_count": unavailable_count,
         "total_users": total_users,
         "active_deals": active_deals,
+        "active_subscriptions": active_subscriptions,
         "unread_messages": unread_messages,
     }
 
@@ -1425,6 +1367,206 @@ async def admin_test_email(_=Depends(require_admin)):
         logger.error(f"[email] test failed: {e}")
         raise HTTPException(502, f"Email send failed: {e}")
     return {"ok": True, "to": to, "email_id": email_id}
+
+
+# ================= SUBSCRIPTIONS =================
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _ist_today() -> date:
+    return datetime.now(IST).date()
+
+
+class SubscriptionIn(BaseModel):
+    name: str = Field("My basket", max_length=60)
+    items: List[OrderItem]
+    frequency: Literal["daily", "alternate", "weekly"]
+    weekly_day: Optional[int] = Field(None, ge=0, le=6)  # 0=Mon … 6=Sun
+    start_date: Optional[str] = None  # YYYY-MM-DD, defaults to tomorrow
+    address: str
+    pincode: str
+    phone: str
+    address_id: Optional[str] = None
+    delivery_slot_label: Optional[str] = "Morning · 7 – 11 AM"
+
+
+class Subscription(SubscriptionIn):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_email: str
+    status: Literal["active", "paused", "cancelled"] = "active"
+    next_delivery_date: str = ""
+    last_order_date: Optional[str] = None
+    orders_generated: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+def _next_sub_date(frequency: str, weekly_day: Optional[int], from_date: date) -> date:
+    if frequency == "daily":
+        return from_date + timedelta(days=1)
+    if frequency == "alternate":
+        return from_date + timedelta(days=2)
+    wd = weekly_day if weekly_day is not None else from_date.weekday()
+    days = (wd - from_date.weekday()) % 7 or 7
+    return from_date + timedelta(days=days)
+
+
+def _first_delivery_date(body: SubscriptionIn) -> date:
+    tomorrow = _ist_today() + timedelta(days=1)
+    start = tomorrow
+    if body.start_date:
+        try:
+            start = max(date.fromisoformat(body.start_date), tomorrow)
+        except ValueError:
+            pass
+    if body.frequency == "weekly" and body.weekly_day is not None:
+        days = (body.weekly_day - start.weekday()) % 7
+        start = start + timedelta(days=days)
+    return start
+
+
+@api.post("/subscriptions", response_model=Subscription)
+async def create_subscription(body: SubscriptionIn, user=Depends(get_current_user)):
+    if not body.items:
+        raise HTTPException(400, "Add at least one item to your basket")
+    if not await db.pincodes.find_one({"pincode": body.pincode}):
+        raise HTTPException(400, "Pincode not serviceable")
+    sub = Subscription(user_email=user["email"], **body.dict())
+    sub.next_delivery_date = _first_delivery_date(body).isoformat()
+    doc = sub.dict()
+    doc["created_at"] = doc["created_at"].isoformat()
+    await db.subscriptions.insert_one(doc)
+    return sub
+
+
+@api.get("/subscriptions", response_model=List[Subscription])
+async def list_subscriptions(user=Depends(get_current_user)):
+    docs = await db.subscriptions.find(
+        {"user_email": user["email"], "status": {"$ne": "cancelled"}}, {"_id": 0},
+    ).sort("created_at", -1).to_list(50)
+    return [Subscription(**d) for d in docs]
+
+
+class SubscriptionUpdate(BaseModel):
+    status: Optional[Literal["active", "paused", "cancelled"]] = None
+    frequency: Optional[Literal["daily", "alternate", "weekly"]] = None
+    weekly_day: Optional[int] = Field(None, ge=0, le=6)
+    items: Optional[List[OrderItem]] = None
+
+
+@api.patch("/subscriptions/{sub_id}", response_model=Subscription)
+async def update_subscription(sub_id: str, body: SubscriptionUpdate, user=Depends(get_current_user)):
+    doc = await db.subscriptions.find_one({"id": sub_id, "user_email": user["email"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Subscription not found")
+    payload = {k: v for k, v in body.dict().items() if v is not None}
+    if body.items is not None and not body.items:
+        raise HTTPException(400, "Basket cannot be empty")
+    merged = {**doc, **payload}
+    # recompute next delivery if resuming or frequency changed
+    if payload.get("status") == "active" or "frequency" in payload or "weekly_day" in payload:
+        nxt = date.fromisoformat(merged["next_delivery_date"]) if merged.get("next_delivery_date") else _ist_today()
+        if nxt <= _ist_today() or "frequency" in payload or "weekly_day" in payload:
+            merged["next_delivery_date"] = _next_sub_date(
+                merged["frequency"], merged.get("weekly_day"), _ist_today(),
+            ).isoformat()
+        payload["next_delivery_date"] = merged["next_delivery_date"]
+    await db.subscriptions.update_one({"id": sub_id}, {"$set": payload})
+    return Subscription(**merged)
+
+
+@api.post("/subscriptions/{sub_id}/skip", response_model=Subscription)
+async def skip_next_delivery(sub_id: str, user=Depends(get_current_user)):
+    doc = await db.subscriptions.find_one({"id": sub_id, "user_email": user["email"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Subscription not found")
+    current = date.fromisoformat(doc["next_delivery_date"])
+    nxt = _next_sub_date(doc["frequency"], doc.get("weekly_day"), current).isoformat()
+    await db.subscriptions.update_one({"id": sub_id}, {"$set": {"next_delivery_date": nxt}})
+    doc["next_delivery_date"] = nxt
+    return Subscription(**doc)
+
+
+async def _generate_subscription_order(sub: dict) -> str:
+    pc = await db.pincodes.find_one({"pincode": sub["pincode"]}) or {}
+    items = [OrderItem(**it) for it in sub["items"]]
+    subtotal = sum(it.price * it.quantity for it in items)
+    delivery_fee = float(pc.get("delivery_fee") or 0)
+    handling_fee = 9.0
+    order = Order(
+        user_email=sub["user_email"],
+        items=items,
+        address=sub["address"],
+        pincode=sub["pincode"],
+        phone=sub["phone"],
+        payment_method="cod",
+        delivery_fee=delivery_fee,
+        handling_fee=handling_fee,
+        subtotal=subtotal,
+        total=subtotal + delivery_fee + handling_fee,
+        delivery_slot_label=sub.get("delivery_slot_label") or "Subscription delivery",
+        source="subscription",
+        subscription_id=sub["id"],
+    )
+    doc = order.dict()
+    doc["created_at"] = doc["created_at"].isoformat()
+    await db.orders.insert_one(doc)
+    for it in items:
+        await db.products.update_one(
+            {"id": it.product_id, "stock": {"$gte": it.quantity}},
+            {"$inc": {"stock": -it.quantity}},
+        )
+    email_doc = order.dict()
+    email_doc["created_at"] = doc["created_at"]
+    asyncio.create_task(_send_admin_email_bg(
+        "subscription-order",
+        f"Subscription order #{order.id[:8]} · ₹{order.total:.0f} · COD",
+        _order_email_html(email_doc),
+    ))
+    return order.id
+
+
+async def run_due_subscriptions() -> int:
+    today = _ist_today().isoformat()
+    due = await db.subscriptions.find(
+        {"status": "active", "next_delivery_date": {"$lte": today}}, {"_id": 0},
+    ).to_list(500)
+    generated = 0
+    for sub in due:
+        try:
+            await _generate_subscription_order(sub)
+            nxt = _next_sub_date(sub["frequency"], sub.get("weekly_day"), _ist_today()).isoformat()
+            await db.subscriptions.update_one(
+                {"id": sub["id"]},
+                {"$set": {"next_delivery_date": nxt, "last_order_date": today}, "$inc": {"orders_generated": 1}},
+            )
+            generated += 1
+        except Exception as e:
+            logger.error(f"[subscriptions] failed to generate order for {sub['id']}: {e}")
+    if generated:
+        logger.info(f"[subscriptions] generated {generated} orders")
+    return generated
+
+
+async def _subscription_loop():
+    await asyncio.sleep(15)
+    while True:
+        try:
+            await run_due_subscriptions()
+        except Exception as e:
+            logger.error(f"[subscriptions] loop error: {e}")
+        await asyncio.sleep(3600)
+
+
+@api.get("/admin/subscriptions", response_model=List[Subscription])
+async def admin_list_subscriptions(_=Depends(require_admin)):
+    docs = await db.subscriptions.find({}, {"_id": 0}).sort("created_at", -1).to_list(300)
+    return [Subscription(**d) for d in docs]
+
+
+@api.post("/admin/subscriptions/run")
+async def admin_run_subscriptions(_=Depends(require_admin)):
+    generated = await run_due_subscriptions()
+    return {"ok": True, "generated": generated}
 
 
 app.include_router(api)
@@ -1868,6 +2010,8 @@ SEED_PINCODES = [
 
 @app.on_event("startup")
 async def seed_database():
+    # Background scheduler: generate orders for due subscriptions (hourly)
+    asyncio.create_task(_subscription_loop())
     # Seed admin
     if not await db.users.find_one({"email": ADMIN_EMAIL.lower()}):
         await db.users.insert_one({

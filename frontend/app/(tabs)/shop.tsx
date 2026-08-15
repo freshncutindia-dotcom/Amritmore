@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, FlatList, ActivityIndicator, TextInput } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, FlatList, ActivityIndicator, TextInput, Modal, Switch } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -20,6 +20,14 @@ type Product = {
   available_cuts?: string[]; available_weights?: string[];
 };
 
+const PRICE_RANGES: { id: string; label: string; min?: number; max?: number }[] = [
+  { id: "any", label: "Any price" },
+  { id: "u50", label: "Under ₹50", max: 50 },
+  { id: "50-100", label: "₹50 – 100", min: 50, max: 100 },
+  { id: "100-200", label: "₹100 – 200", min: 100, max: 200 },
+  { id: "200+", label: "₹200+", min: 200 },
+];
+
 function Shop() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -32,6 +40,12 @@ function Shop() {
   const [search, setSearch] = useState<string>("");
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [expandedTerms, setExpandedTerms] = useState<string[]>([]);
+  const [showSuggest, setShowSuggest] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [priceRange, setPriceRange] = useState<string>("any");
+  const [inStock, setInStock] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,14 +54,37 @@ function Shop() {
       if (category !== "all") qs.set("category", category);
       if (cutType !== "all") qs.set("cut_type", cutType);
       if (search.trim()) qs.set("q", search.trim());
+      const pr = PRICE_RANGES.find((r) => r.id === priceRange);
+      if (pr?.min != null) qs.set("min_price", String(pr.min));
+      if (pr?.max != null) qs.set("max_price", String(pr.max));
+      if (inStock) qs.set("in_stock", "true");
       const data = await apiFetch(`/products${qs.toString() ? `?${qs}` : ""}`);
       setItems(data);
     } finally {
       setLoading(false);
     }
-  }, [category, cutType, search]);
+  }, [category, cutType, search, priceRange, inStock]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const t = setTimeout(load, 300);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  // Auto-suggestions with synonym support
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2) { setSuggestions([]); setExpandedTerms([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const r = await apiFetch(`/search/suggest?q=${encodeURIComponent(q)}`);
+        setSuggestions(r.suggestions || []);
+        setExpandedTerms(r.expanded || []);
+      } catch {}
+    }, 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const filtersActive = priceRange !== "any" || inStock;
 
   const catTabs = useMemo(() => [{ id: "all", label: "All" }, ...CATEGORIES.map((c) => ({ id: c.id, label: c.label }))], []);
 
@@ -61,19 +98,50 @@ function Shop() {
           </Pressable>
           <Text style={styles.title}>Shop</Text>
         </View>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={18} color={theme.colors.onSurfaceMuted} />
-          <TextInput
-            testID="search-input"
-            placeholder="Search vegetables, fruits..."
-            placeholderTextColor={theme.colors.onSurfaceMuted}
-            value={search}
-            onChangeText={setSearch}
-            style={styles.searchInput}
-          />
-          {search ? (
-            <Pressable onPress={() => setSearch("")}><Ionicons name="close-circle" size={18} color={theme.colors.onSurfaceMuted} /></Pressable>
-          ) : null}
+        <View style={{ flexDirection: "row", gap: 10, zIndex: 30 }}>
+          <View style={[styles.searchBar, { flex: 1 }]}>
+            <Ionicons name="search" size={18} color={theme.colors.onSurfaceMuted} />
+            <TextInput
+              testID="search-input"
+              placeholder="Try 'dhaniya', 'bhindi', 'mango'…"
+              placeholderTextColor={theme.colors.onSurfaceMuted}
+              value={search}
+              onChangeText={(t) => { setSearch(t); setShowSuggest(true); }}
+              onFocus={() => setShowSuggest(true)}
+              onBlur={() => setTimeout(() => setShowSuggest(false), 250)}
+              style={styles.searchInput}
+            />
+            {search ? (
+              <Pressable onPress={() => { setSearch(""); setShowSuggest(false); }}><Ionicons name="close-circle" size={18} color={theme.colors.onSurfaceMuted} /></Pressable>
+            ) : null}
+          </View>
+          <Pressable testID="filter-btn" onPress={() => setFilterOpen(true)} style={styles.filterBtn}>
+            <Ionicons name="options-outline" size={20} color={theme.colors.onSurface} />
+            {filtersActive && <View style={styles.filterDot} />}
+          </Pressable>
+
+          {showSuggest && search.trim().length >= 2 && suggestions.length > 0 && (
+            <View style={styles.suggestBox} testID="suggest-box">
+              {expandedTerms.length > 0 && (
+                <Text style={styles.suggestHint}>Also matching: {expandedTerms.join(", ")}</Text>
+              )}
+              {suggestions.map((s) => (
+                <Pressable
+                  key={s.id}
+                  testID={`suggest-${s.id}`}
+                  style={styles.suggestRow}
+                  onPress={() => { setShowSuggest(false); router.push(`/product/${s.id}`); }}
+                >
+                  <Image source={{ uri: s.image }} style={styles.suggestImg} contentFit="cover" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.suggestName} numberOfLines={1}>{s.name}</Text>
+                    <Text style={styles.suggestMeta} numberOfLines={1}>{s.local_name ? `${s.local_name} · ` : ""}₹{s.price} · {s.unit}</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={14} color={theme.colors.onSurfaceMuted} />
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Category chips */}
@@ -143,6 +211,35 @@ function Shop() {
         />
       )}
 
+      <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: theme.colors.scrim }}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setFilterOpen(false)} />
+          <View style={styles.filterSheet}>
+            <Text style={styles.filterTitle}>Filters</Text>
+            <Text style={styles.filterLbl}>Price per pack</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {PRICE_RANGES.map((r) => (
+                <Pressable key={r.id} testID={`price-${r.id}`} onPress={() => setPriceRange(r.id)} style={[styles.chip, priceRange === r.id && styles.chipActive]}>
+                  <Text style={[styles.chipText, priceRange === r.id && styles.chipTextActive]}>{r.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.stockRow}>
+              <Text style={styles.filterLbl}>In stock only</Text>
+              <Switch testID="instock-switch" value={inStock} onValueChange={setInStock} trackColor={{ false: theme.colors.border, true: theme.colors.brand }} thumbColor="#fff" />
+            </View>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+              <Pressable testID="filter-reset" onPress={() => { setPriceRange("any"); setInStock(false); }} style={[styles.filterAction, { backgroundColor: theme.colors.surface3 }]}>
+                <Text style={{ fontWeight: "700", color: theme.colors.onSurface }}>Reset</Text>
+              </Pressable>
+              <Pressable testID="filter-apply" onPress={() => setFilterOpen(false)} style={[styles.filterAction, { backgroundColor: theme.colors.brand }]}>
+                <Text style={{ fontWeight: "700", color: theme.colors.onBrand }}>Show results</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {cartCount > 0 && <FloatingCartFab onPress={() => router.push("/(tabs)/cart")} />}
     </View>
   );
@@ -192,6 +289,19 @@ const styles = StyleSheet.create({
   menuBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.surface2, alignItems: "center", justifyContent: "center", ...theme.shadow.sm },
   searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: theme.colors.surface3, borderRadius: theme.radius.pill, paddingHorizontal: 14, height: 44, gap: 8 },
   searchInput: { flex: 1, color: theme.colors.onSurface, fontSize: 14 },
+  filterBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.colors.surface2, alignItems: "center", justifyContent: "center", ...theme.shadow.sm },
+  filterDot: { position: "absolute", top: 9, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.brand },
+  suggestBox: { position: "absolute", top: 50, left: 0, right: 54, backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, padding: 6, zIndex: 50, elevation: 10, ...theme.shadow.md },
+  suggestHint: { fontSize: 11, color: theme.colors.brandDark, fontWeight: "600", paddingHorizontal: 10, paddingTop: 6 },
+  suggestRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 8, borderRadius: theme.radius.md },
+  suggestImg: { width: 36, height: 36, borderRadius: theme.radius.sm },
+  suggestName: { fontSize: 13, fontWeight: "700", color: theme.colors.onSurface },
+  suggestMeta: { fontSize: 11, color: theme.colors.onSurfaceMuted, marginTop: 1 },
+  filterSheet: { backgroundColor: theme.colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: theme.spacing.lg, paddingBottom: 34, gap: 12 },
+  filterTitle: { fontSize: 18, fontWeight: "800", color: theme.colors.onSurface },
+  filterLbl: { fontSize: 13, fontWeight: "700", color: theme.colors.onSurfaceMuted },
+  stockRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
+  filterAction: { flex: 1, height: 48, borderRadius: theme.radius.pill, alignItems: "center", justifyContent: "center" },
   chipRow: { flexDirection: "row", gap: 8, paddingVertical: 8, paddingRight: 16 },
   chip: { height: 36, paddingHorizontal: 16, borderRadius: theme.radius.pill, backgroundColor: theme.colors.surface2, borderWidth: 1, borderColor: theme.colors.border, justifyContent: "center", flexShrink: 0 },
   chipActive: { backgroundColor: theme.colors.brand, borderColor: theme.colors.brand },

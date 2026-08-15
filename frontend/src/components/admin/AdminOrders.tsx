@@ -99,6 +99,11 @@ export default function AdminOrders() {
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <Text style={sx.itemName}>#{o.id.slice(0, 8)}</Text>
+                      {o.source === "subscription" && (
+                        <View style={[styles.pill, { backgroundColor: "rgba(241,162,107,0.2)" }]}>
+                          <Text style={[styles.pillTxt, { color: theme.colors.accent }]}>🔁 sub</Text>
+                        </View>
+                      )}
                       <View style={[styles.pill, { backgroundColor: `${COLORS[o.status]}22` }]}>
                         <Text style={[styles.pillTxt, { color: COLORS[o.status] }]}>{o.status}</Text>
                       </View>

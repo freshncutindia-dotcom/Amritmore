@@ -158,3 +158,30 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Built full admin control panel + email notifications. Backend endpoints all smoke-tested OK via httpx. Need full e2e test: admin login (admin@freshcuts.com/Admin@123), all admin tabs, order status flow, product editing, and customer support flow (OTP login mobile any 10-digit, OTP 123456)."
+
+## Session (June 2026) — Search + Subscriptions
+backend:
+  - task: "Smart search: GET /api/search/suggest?q= (synonym expansion dhaniya->coriander etc), /api/products supports q + min_price/max_price/in_stock"
+    implemented: true
+    working: true
+    comment: "Verified via httpx: dhaniya->Coriander, bhindi->Lady's Finger, aloo->Potato, price filter correct"
+  - task: "Subscriptions: POST/GET /api/subscriptions, PATCH /{id} (pause/resume/cancel/frequency), POST /{id}/skip, admin GET /api/admin/subscriptions + POST /api/admin/subscriptions/run; hourly loop generates COD orders (source=subscription), decrements stock, emails admin. LEGACY box-based subscription system REMOVED."
+    implemented: true
+    working: true
+    comment: "Verified full lifecycle via httpx incl. forced run generating an order"
+frontend:
+  - task: "Shop: auto-suggest dropdown (testID suggest-box, suggest-<id>), synonym hint, filter sheet (filter-btn, price-<id>, instock-switch, filter-reset, filter-apply), debounced search"
+    implemented: true
+    working: "NA"
+  - task: "Subscribe screen /subscribe rewritten: custom basket from cart, qty editing, frequency daily/alternate/weekly + weekday, start date, saved-address picker, per-delivery pricing, COD note (testIDs: sub-name, freq-<id>, day-<Mon..>, start-1/2, sub-addr-<id>, sub-submit)"
+    implemented: true
+    working: "NA"
+  - task: "/subscriptions manage screen: pause/resume (sub-pause-<id>), skip (sub-skip-<id>), cancel two-tap (sub-cancel-<id>), + new (subs-new)"
+    implemented: true
+    working: "NA"
+  - task: "Entry points: cart 'subscribe-basket-btn', profile 'profile-subscriptions', home banner -> /subscribe; AdminOrders '🔁 sub' badge; AdminOverview subscriptions/deals stat cards"
+    implemented: true
+    working: "NA"
+agent_communication:
+  - agent: "main"
+    message: "Backend fully smoke-tested. Need frontend e2e for search suggestions/filters and subscription create/manage flows."

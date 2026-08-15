@@ -76,8 +76,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!ready) return; // don't overwrite persisted cart before hydration
     AsyncStorage.setItem(CART_KEY, JSON.stringify(cart));
-  }, [cart]);
+  }, [cart, ready]);
 
   const setLocation = useCallback((loc: Location | null) => {
     setLocationState(loc);
