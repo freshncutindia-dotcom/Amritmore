@@ -1,0 +1,36 @@
+{
+  "summary": "Retest of the single iteration_17 failure (Home footer missing) + new UX (address auto-return in pick mode). Both PRIMARY items pass. Home footer renders at bottom with logo, tagline, 4 link pills (footer-support/orders/subs/addresses), delivery hours, 'Serving 75+ pincodes', support@freshcuts.in and copyright. Footer-support -> /support, footer-subs -> /subscriptions confirmed. Pick-mode auto-return: after OTP login with fresh mobile 9937268145 + item added + pincode 400001 + Proceed to Checkout -> ck-add-addr -> /addresses?pick=1 -> filled form -> addr-save -> auto-redirected to /checkout?address_id=... with ck-selected-addr visible showing 'Auto Test · 9998887771 / Flat 101, Test Bldg, Fort – 400001' and Place order enabled — WITHOUT needing an extra tap. Quick smoke: no red screen, Daily Picks 8 cards (3 deals + 5 picks), floating cart FAB compact 134.7px wide right-aligned pill (x=250, h=47).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "theme.shadow.* (shadow* style props)", "issue": "React Native Web warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Reference: /app/frontend/src/theme (theme.shadow.* used throughout). Non-blocking, but appears on every screen."},
+      {"component": "LinearGradient pointerEvents prop", "issue": "Warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/app/(tabs)/index.tsx:194 (LinearGradient uses pointerEvents=\"none\" as prop)."},
+      {"component": "HeroVideo defaultMuted prop", "issue": "React warns 'React does not recognize the defaultMuted prop on a DOM element' — camelCase attribute passed to native <video>. Reference: /app/frontend/app/(tabs)/index.tsx:50 (`defaultMuted: true` in React.createElement). Should be spelled `defaultmuted` or removed (muted alone is sufficient)."}
+    ]
+  },
+  "test_verification": {
+    "1_home_footer": "PASS — All 4 testIDs (footer-support, footer-orders, footer-subs, footer-addresses) present & visible. All required text found: logo image, tagline 'Farm-fresh whole & pre-cut...', 'Delivery 7 AM – 9 PM', 'Serving 75+ pincodes across Mumbai', 'support@freshcuts.in', '© 2026 FreshCuts'. footer-support navigates to /support; footer-subs navigates to /subscriptions.",
+    "2_address_auto_return": "PASS — OTP login with fresh 10-digit mobile (9937268145 + 123456) -> home add first pick to cart -> /cart pincode 400001 + Check -> proceed-checkout-btn -> /checkout. ck-add-addr tap -> /addresses?pick=1 with empty-state auto-showing the form. Filled name/mobile/line1/area/pincode -> addr-save -> URL becomes /checkout?address_id=<uuid> automatically. ck-selected-addr visible with Auto Test details; place-order-btn disabled=False. No extra tap on address card needed.",
+    "3_smoke": "PASS — Home renders without red screen. Daily Picks = 3 deal-card + 5 pick-card = 8 total. Floating cart FAB after adding 1 item: x=249.9, y=696.3, width=134.7px, height=47.4px — compact right-aligned pill."
+  },
+  "test_report_links": ["/app/test_reports/iteration_18.json"],
+  "action_items": [
+    "Optional: Silence RN Web deprecation warnings by migrating theme.shadow.* to boxShadow and moving LinearGradient pointerEvents='none' from prop into style.",
+    "Optional: Fix HeroVideo defaultMuted DOM prop warning in index.tsx:50 — either drop the defaultMuted key (muted already set) or spell it lowercase defaultmuted."
+  ],
+  "critical_code_review_comments": [
+    "addresses.tsx save() correctly does router.replace to /checkout with address_id when isPick — good, avoids back-stack pollution.",
+    "checkout.tsx preselects address via params.address_id in useFocusEffect load(), so returning from /addresses immediately shows ck-selected-addr — verified.",
+    "Home footer JSX (lines 322-357) matches the styles defined below; regression fixed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped as requested)", "frontend": "100% (3/3 tasks verified working)"},
+  "seed_data_creation": "Created OTP users 9937268145 and 9667351538 during testing; added one address 'Auto Test / Flat 101, Test Bldg, Fort / 400001' plus one incomplete address record on backend.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration_17 regression (missing home footer JSX) and the pick-mode auto-return UX are both verified working. No further action needed for this bundle. Only minor RN Web deprecation warnings remain (shadow*/pointerEvents/defaultMuted) — see action_items.",
+  "rca_of_issue": "N/A — regression fix verified. Previous RCA: index.tsx had footer styles but no JSX. Current index.tsx (lines 322-357) now renders the footer <View style={styles.footer}> with logo, tagline, 4 Pressable link pills bearing the required testIDs, three info rows (time/location/mail) and copyright."
+}

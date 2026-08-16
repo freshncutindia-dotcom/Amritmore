@@ -91,3 +91,17 @@ Audit findings fixed & verified (iteration_16, 8/8 backend + full frontend e2e):
 - SEC-004: strong random JWT secret; SEC-005: re.escape on cut_type regex
 - Hardening: login lockout (5 fails/15min per email → 429), generic Stripe errors, CORS allow_credentials=False, auth token in expo-secure-store on native (AsyncStorage web) with migration, removed admin-credential hint from auth.tsx
 Remaining (accepted for now): RN-web shadow*/pointerEvents deprecation warnings (cosmetic).
+
+## Phase: Post-launch UI fix batch (June 2026) — DONE ✅ (iterations 17-18, all pass)
+User-reported from production; fixed in preview (needs redeploy):
+1. Checkout address selection: reloads on focus (useFocusEffect); saving a new address in pick mode auto-returns to checkout with it selected
+2. Cart pincode box no longer hidden under summary (scroll paddingBottom 420, compacted summary; restored missing subLink styles)
+3. Floating cart FAB → compact right-aligned pill "N · ₹X"
+4. Home footer added: logo, tagline, links (Support/Orders/Subscriptions/Addresses), hours, coverage, email, ©
+5. Home order: video → Shop by category → Daily Picks → Quick Buy → Subscribe promo → Fresh picks → Ready-to-cook → footer
+6. Daily Picks fills to 8 cards (deals + regular picks), Fresh picks 8, both horizontal
+7. Shop category chip syncs with nav param (highlight fix)
+8. Cut-type chips only for cut-veg/cut-fruit/ready-mix (no "whole" option)
+9. Tab bar height = 58 + max(insets.bottom,12) — clears Android nav buttons
+10. Smaller product cards (home bigCard 140/img 92, catCard 118×136, shop img 104, HomeSections CARD_W 138)
+Known cosmetic: RN-web shadow*/pointerEvents/defaultMuted deprecation warnings.

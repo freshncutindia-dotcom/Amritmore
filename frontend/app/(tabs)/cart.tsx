@@ -66,7 +66,7 @@ function CartScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 260 }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 420 }} showsVerticalScrollIndicator={false}>
           <View style={{ paddingHorizontal: theme.spacing.lg, gap: theme.spacing.md, marginTop: 12 }}>
             {cart.map((item, i) => (
               <SwipeRow
@@ -251,13 +251,15 @@ const styles = StyleSheet.create({
   pinResult: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: theme.radius.md, marginTop: 12 },
   pinResultTxt: { flex: 1, fontSize: 12, color: theme.colors.onSurface },
 
-  summary: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: theme.colors.surface2, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: theme.spacing.lg, ...theme.shadow.md },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 4 },
+  summary: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: theme.colors.surface2, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, ...theme.shadow.md },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 2 },
   summaryLbl: { color: theme.colors.onSurfaceMuted, fontSize: 13 },
   summaryVal: { color: theme.colors.onSurface, fontWeight: "600", fontSize: 13 },
   totalLbl: { color: theme.colors.onSurface, fontSize: 16, fontWeight: "700" },
   totalVal: { color: theme.colors.brand, fontSize: 22, fontWeight: "700" },
-  proceedBtn: { marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.colors.brand, height: 52, borderRadius: theme.radius.pill },
+  proceedBtn: { marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.colors.brand, height: 48, borderRadius: theme.radius.pill },
+  subLink: { marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: theme.colors.brandTint, height: 36, borderRadius: theme.radius.pill },
+  subLinkTxt: { color: theme.colors.brandDark, fontWeight: "700", fontSize: 12 },
   proceedDisabled: { backgroundColor: theme.colors.borderStrong },
   proceedTxt: { color: theme.colors.onBrand, fontWeight: "700", fontSize: 15 },
 });

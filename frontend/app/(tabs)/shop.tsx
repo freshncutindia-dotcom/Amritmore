@@ -86,6 +86,18 @@ function Shop() {
 
   const filtersActive = priceRange !== "any" || inStock;
 
+  // Sync category when navigating from home quick-links / category cards
+  useEffect(() => {
+    const c = typeof params.category === "string" ? params.category : undefined;
+    if (c) {
+      setCategory(c);
+      setCutType("all");
+    }
+  }, [params.category]);
+
+  // Cut-type filters only make sense for pre-cut categories
+  const showCuts = ["cut-veg", "cut-fruit", "ready-mix"].includes(category);
+
   const catTabs = useMemo(() => [{ id: "all", label: "All" }, ...CATEGORIES.map((c) => ({ id: c.id, label: c.label }))], []);
 
   return (
@@ -152,7 +164,7 @@ function Shop() {
               <Pressable
                 key={c.id}
                 testID={`cat-chip-${c.id}`}
-                onPress={() => { Haptics.selectionAsync(); setCategory(c.id); }}
+                onPress={() => { Haptics.selectionAsync(); setCategory(c.id); setCutType("all"); }}
                 style={[styles.chip, active && styles.chipActive]}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
@@ -161,22 +173,24 @@ function Shop() {
           })}
         </ScrollView>
 
-        {/* Cut type chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {CUT_TYPES.map((c) => {
-            const active = cutType === c.id;
-            return (
-              <Pressable
-                key={c.id}
-                testID={`cut-chip-${c.id}`}
-                onPress={() => { Haptics.selectionAsync(); setCutType(c.id); }}
-                style={[styles.chipSm, active && styles.chipSmActive]}
-              >
-                <Text style={[styles.chipSmText, active && styles.chipSmTextActive]}>{c.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* Cut type chips — only for pre-cut categories */}
+        {showCuts && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            {CUT_TYPES.filter((c) => c.id !== "whole").map((c) => {
+              const active = cutType === c.id;
+              return (
+                <Pressable
+                  key={c.id}
+                  testID={`cut-chip-${c.id}`}
+                  onPress={() => { Haptics.selectionAsync(); setCutType(c.id); }}
+                  style={[styles.chipSm, active && styles.chipSmActive]}
+                >
+                  <Text style={[styles.chipSmText, active && styles.chipSmTextActive]}>{c.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {loading ? (
@@ -260,7 +274,7 @@ function GridCard({ product, index, onOpen, onAdd }: { product: Product; index: 
       >
         <Image source={{ uri: product.image }} style={styles.gImg} contentFit="cover" />
         <View style={styles.cutBadge}><Text style={styles.cutBadgeTxt}>{product.cut_type}</Text></View>
-        <View style={{ padding: theme.spacing.md }}>
+        <View style={{ padding: theme.spacing.sm }}>
           <Text numberOfLines={1} style={styles.gName}>{product.name}</Text>
           {product.local_name ? <Text numberOfLines={1} style={styles.gLocal}>{product.local_name}</Text> : null}
           <Text style={styles.gMeta}>{product.unit}</Text>
@@ -313,15 +327,15 @@ const styles = StyleSheet.create({
   chipSmTextActive: { color: theme.colors.brand, fontWeight: "600" },
 
   gCard: { backgroundColor: theme.colors.surface2, borderRadius: theme.radius.lg, overflow: "hidden", ...theme.shadow.sm },
-  gImg: { width: "100%", height: 140 },
+  gImg: { width: "100%", height: 104 },
   cutBadge: { position: "absolute", top: 10, left: 10, backgroundColor: "rgba(255,255,255,0.9)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: theme.radius.pill },
   cutBadgeTxt: { fontSize: 10, fontWeight: "600", color: theme.colors.onSurface, textTransform: "capitalize" },
-  gName: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 14 },
+  gName: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 13 },
   gLocal: { color: theme.colors.onSurfaceMuted, fontSize: 11, marginTop: 1, fontStyle: "italic" },
   gMeta: { color: theme.colors.onSurfaceMuted, fontSize: 12, marginTop: 2 },
   gRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
-  gPrice: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 15 },
-  gAdd: { width: 30, height: 30, borderRadius: 15, backgroundColor: theme.colors.brand, alignItems: "center", justifyContent: "center" },
+  gPrice: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 14 },
+  gAdd: { width: 28, height: 28, borderRadius: 14, backgroundColor: theme.colors.brand, alignItems: "center", justifyContent: "center" },
 
   empty: { alignItems: "center", padding: 60 },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },

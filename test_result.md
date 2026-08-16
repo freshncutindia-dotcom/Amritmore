@@ -212,3 +212,27 @@ frontend:
 agent_communication:
   - agent: "main"
     message: "All backend security fixes verified via httpx. Need frontend regression: email login (NEW admin password), OTP login flow, place order (totals now come from server), admin panel access."
+
+## Session (June 2026) — UI fixes batch (user-reported from production)
+frontend:
+  - task: "Checkout reloads addresses on focus (useFocusEffect) - fixes 'unable to select address'; empty-state add-address passes pick=1"
+    implemented: true
+    working: "NA"
+  - task: "Cart: scroll paddingBottom 420 so pincode box not hidden under summary; summary compacted; subLink styles restored (were missing)"
+    implemented: true
+    working: "NA"
+  - task: "FloatingCartFab now compact right-aligned pill (was full-width bar covering screen)"
+    implemented: true
+    working: "NA"
+  - task: "Home: Shop by category moved above Daily Picks (below video); Daily Picks fills to 8 items (deals + regular picks, horizontal); Fresh picks slice(0,8); footer with info/contact links added; smaller product cards (bigCard 140, catCard 118)"
+    implemented: true
+    working: "NA"
+  - task: "Shop: category chip syncs with navigation param (highlight fix); cut-type chips only shown for cut-veg/cut-fruit/ready-mix ('whole' option removed); smaller grid cards"
+    implemented: true
+    working: "NA"
+  - task: "Tab bar uses safe-area bottom inset (58 + max(insets.bottom,12)) so it sits above Android nav buttons"
+    implemented: true
+    working: "NA"
+agent_communication:
+  - agent: "main"
+    message: "10 user-reported UI fixes applied. Smoke screenshot OK. Need frontend e2e verification."

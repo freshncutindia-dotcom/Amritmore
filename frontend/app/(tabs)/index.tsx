@@ -131,7 +131,7 @@ function Home() {
     load();
   };
 
-  const featured = products.slice(0, 6);
+  const featured = products.slice(0, 8);
   const bestSellers = products.filter((p) => p.category === "cut-veg" || p.category === "cut-fruit").slice(0, 5);
 
   return (
@@ -203,13 +203,7 @@ function Home() {
           </View>
         </View>
 
-        {/* Daily Deals */}
-        <DailyDealsCarousel />
-
-        {/* Quick Buy Again (login-only) */}
-        <QuickBuyAgain />
-
-        {/* Categories — horizontal scroll (compact) */}
+        {/* Shop by category — right below the video banner */}
         <Animated.View entering={FadeInDown.delay(50)} style={styles.sectionTight}>
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>Shop by category</Text>
@@ -237,6 +231,12 @@ function Home() {
             ))}
           </ScrollView>
         </Animated.View>
+
+        {/* Daily Deals */}
+        <DailyDealsCarousel />
+
+        {/* Quick Buy Again (login-only) */}
+        <QuickBuyAgain />
 
         {/* Subscribe & Save promo */}
         <Animated.View entering={FadeInDown.delay(80)} style={{ marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.lg }}>
@@ -318,6 +318,43 @@ function Home() {
             ))}
           </View>
         </Animated.View>
+
+        {/* Info & contact footer */}
+        <View style={styles.footer}>
+          <Image source={require("../../assets/images/logo.webp")} style={styles.footerLogo} contentFit="contain" />
+          <Text style={styles.footerTag}>Farm-fresh whole & pre-cut veggies and fruits, delivered to your doorstep across Mumbai.</Text>
+          <View style={styles.footerRowWrap}>
+            <Pressable testID="footer-support" style={styles.footerLink} onPress={() => router.push("/support")}>
+              <Ionicons name="chatbubble-ellipses-outline" size={15} color={theme.colors.brandDark} />
+              <Text style={styles.footerLinkTxt}>Contact Support</Text>
+            </Pressable>
+            <Pressable testID="footer-orders" style={styles.footerLink} onPress={() => router.push("/orders")}>
+              <Ionicons name="receipt-outline" size={15} color={theme.colors.brandDark} />
+              <Text style={styles.footerLinkTxt}>My Orders</Text>
+            </Pressable>
+            <Pressable testID="footer-subs" style={styles.footerLink} onPress={() => router.push("/subscriptions")}>
+              <Ionicons name="repeat-outline" size={15} color={theme.colors.brandDark} />
+              <Text style={styles.footerLinkTxt}>Subscriptions</Text>
+            </Pressable>
+            <Pressable testID="footer-addresses" style={styles.footerLink} onPress={() => router.push("/addresses")}>
+              <Ionicons name="home-outline" size={15} color={theme.colors.brandDark} />
+              <Text style={styles.footerLinkTxt}>My Addresses</Text>
+            </Pressable>
+          </View>
+          <View style={styles.footerInfoRow}>
+            <Ionicons name="time-outline" size={14} color={theme.colors.onSurfaceMuted} />
+            <Text style={styles.footerInfoTxt}>Delivery 7 AM – 9 PM · All days</Text>
+          </View>
+          <View style={styles.footerInfoRow}>
+            <Ionicons name="location-outline" size={14} color={theme.colors.onSurfaceMuted} />
+            <Text style={styles.footerInfoTxt}>Serving 75+ pincodes across Mumbai</Text>
+          </View>
+          <View style={styles.footerInfoRow}>
+            <Ionicons name="mail-outline" size={14} color={theme.colors.onSurfaceMuted} />
+            <Text style={styles.footerInfoTxt}>support@freshcuts.in</Text>
+          </View>
+          <Text style={styles.footerCopy}>© 2026 FreshCuts · Fresh. Cut. Delivered. 🥬</Text>
+        </View>
       </ScrollView>
 
       {cartCount > 0 && <FloatingCartFab onPress={() => router.push("/(tabs)/cart")} />}
@@ -366,12 +403,9 @@ export function FloatingCartFab({ onPress }: { onPress: () => void }) {
   return (
     <Animated.View style={[styles.fab, st]}>
       <Pressable testID="floating-cart-fab" onPress={onPress} style={styles.fabInner}>
-        <Ionicons name="basket" size={22} color={theme.colors.onBrand} />
-        <View style={{ marginLeft: 10 }}>
-          <Text style={styles.fabTxt}>{cartCount} item{cartCount > 1 ? "s" : ""}</Text>
-          <Text style={styles.fabPrice}>₹{cartTotal.toFixed(0)}</Text>
-        </View>
-        <Ionicons name="arrow-forward" size={18} color={theme.colors.onBrand} style={{ marginLeft: 12 }} />
+        <Ionicons name="basket" size={17} color={theme.colors.onBrand} />
+        <Text style={styles.fabTxt}>{cartCount} · ₹{cartTotal.toFixed(0)}</Text>
+        <Ionicons name="arrow-forward" size={14} color={theme.colors.onBrand} />
       </Pressable>
     </Animated.View>
   );
@@ -445,16 +479,16 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: theme.spacing.lg },
 
   catGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: theme.spacing.lg, gap: theme.spacing.sm },
-  catCard: { width: 150, height: 170, borderRadius: theme.radius.lg, overflow: "hidden", justifyContent: "flex-end", padding: theme.spacing.md, ...theme.shadow.sm },
+  catCard: { width: 118, height: 136, borderRadius: theme.radius.lg, overflow: "hidden", justifyContent: "flex-end", padding: theme.spacing.sm, ...theme.shadow.sm },
   catEmoji: { fontSize: 22, position: "absolute", top: 8, right: 10 },
-  catLabel: { color: "#fff", fontWeight: "700", fontSize: 14, lineHeight: 18 },
+  catLabel: { color: "#fff", fontWeight: "700", fontSize: 12, lineHeight: 15 },
 
-  bigCard: { width: 175, backgroundColor: theme.colors.surface2, borderRadius: theme.radius.lg, overflow: "hidden", ...theme.shadow.sm },
-  bigImg: { width: "100%", height: 130 },
-  bigName: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 14 },
-  bigMeta: { color: theme.colors.onSurfaceMuted, fontSize: 12, marginTop: 2, marginBottom: 8 },
-  bigPrice: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 16 },
-  bigAdd: { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.brand, alignItems: "center", justifyContent: "center" },
+  bigCard: { width: 140, backgroundColor: theme.colors.surface2, borderRadius: theme.radius.lg, overflow: "hidden", ...theme.shadow.sm },
+  bigImg: { width: "100%", height: 92 },
+  bigName: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 13 },
+  bigMeta: { color: theme.colors.onSurfaceMuted, fontSize: 11, marginTop: 2, marginBottom: 6 },
+  bigPrice: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 14 },
+  bigAdd: { width: 28, height: 28, borderRadius: 14, backgroundColor: theme.colors.brand, alignItems: "center", justifyContent: "center" },
 
   rowCard: { flexDirection: "row", alignItems: "center", backgroundColor: theme.colors.surface2, borderRadius: theme.radius.lg, padding: theme.spacing.sm, gap: theme.spacing.md, ...theme.shadow.sm },
   rowImg: { width: 68, height: 68, borderRadius: theme.radius.md },
@@ -463,10 +497,9 @@ const styles = StyleSheet.create({
   rowPrice: { color: theme.colors.onSurface, fontWeight: "700", fontSize: 15, marginTop: 4 },
   rowAdd: { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.colors.brand, alignItems: "center", justifyContent: "center" },
 
-  fab: { position: "absolute", left: 20, right: 20, bottom: 96, ...theme.shadow.lg },
-  fabInner: { flexDirection: "row", alignItems: "center", backgroundColor: theme.colors.brand, paddingHorizontal: 18, paddingVertical: 14, borderRadius: theme.radius.pill },
-  fabTxt: { color: theme.colors.onBrand, fontSize: 12, opacity: 0.85 },
-  fabPrice: { color: theme.colors.onBrand, fontWeight: "700", fontSize: 15 },
+  fab: { position: "absolute", right: 16, bottom: 104, ...theme.shadow.lg },
+  fabInner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: theme.colors.brand, paddingHorizontal: 14, height: 40, borderRadius: theme.radius.pill },
+  fabTxt: { color: theme.colors.onBrand, fontWeight: "800", fontSize: 13 },
 
   subPromo: { height: 130, borderRadius: theme.radius.lg, overflow: "hidden", flexDirection: "row", alignItems: "center", ...theme.shadow.md },
   subBadge: { alignSelf: "flex-start", backgroundColor: "rgba(255,255,255,0.22)", paddingHorizontal: 10, paddingVertical: 3, borderRadius: theme.radius.pill, marginBottom: 8 },
@@ -475,4 +508,14 @@ const styles = StyleSheet.create({
   subArrowRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
   subCta: { color: "#fff", fontSize: 13, fontWeight: "600" },
   subEmoji: { fontSize: 80, marginRight: -10, opacity: 0.4 },
+
+  footer: { marginTop: theme.spacing.xl, marginHorizontal: theme.spacing.lg, backgroundColor: theme.colors.surface2, borderRadius: theme.radius.lg, padding: theme.spacing.lg, alignItems: "center", gap: 6, ...theme.shadow.sm },
+  footerLogo: { width: 170, height: 64, marginTop: -8 },
+  footerTag: { fontSize: 12, color: theme.colors.onSurfaceMuted, textAlign: "center", lineHeight: 18 },
+  footerRowWrap: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8, marginVertical: 10 },
+  footerLink: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.colors.brandTint, paddingHorizontal: 12, height: 34, borderRadius: theme.radius.pill },
+  footerLinkTxt: { fontSize: 12, fontWeight: "700", color: theme.colors.brandDark },
+  footerInfoRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
+  footerInfoTxt: { fontSize: 12, color: theme.colors.onSurfaceMuted },
+  footerCopy: { fontSize: 11, color: theme.colors.onSurfaceMuted, marginTop: 10 },
 });

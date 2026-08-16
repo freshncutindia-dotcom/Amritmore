@@ -24,18 +24,28 @@ export type Deal = {
   cut_type: string;
 };
 
+type Slide = { key: string; deal?: Deal; pick?: any };
+
 export function DailyDealsCarousel() {
   const router = useRouter();
   const { addToCart } = useApp();
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const [slides, setSlides] = useState<Slide[]>([]);
+  const [hasDeals, setHasDeals] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const data: Deal[] = await apiFetch("/deals");
-      setDeals(data);
-    } catch {
-      setDeals([]);
+      const [deals, products]: [Deal[], any[]] = await Promise.all([
+        apiFetch("/deals").catch(() => []),
+        apiFetch("/products").catch(() => []),
+      ]);
+      const dealIds = new Set(deals.map((d) => d.product_id));
+      const fillers = products.filter((p) => !dealIds.has(p.id)).slice(0, Math.max(0, 8 - deals.length));
+      setHasDeals(deals.length > 0);
+      setSlides([
+        ...deals.map((d) => ({ key: `d-${d.id}`, deal: d })),
+        ...fillers.map((p) => ({ key: `p-${p.id}`, pick: p })),
+      ]);
     } finally {
       setLoading(false);
     }
@@ -51,7 +61,7 @@ export function DailyDealsCarousel() {
     opacity: 0.7 + pulse.value * 0.3,
   }));
 
-  if (loading || deals.length === 0) return null;
+  if (loading || slides.length === 0) return null;
 
   return (
     <View style={styles.section}>
@@ -60,64 +70,110 @@ export function DailyDealsCarousel() {
           <Animated.View style={pulseStyle}>
             <Text style={styles.flame}>🔥</Text>
           </Animated.View>
-          <Text style={styles.title}>Daily Deals</Text>
-          <View style={styles.livePill}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveTxt}>LIVE</Text>
-          </View>
+          <Text style={styles.title}>Daily Picks</Text>
+          {hasDeals && (
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveTxt}>LIVE</Text>
+            </View>
+          )}
         </View>
       </View>
 
       <FlatList
         horizontal
-        data={deals}
-        keyExtractor={(d) => d.id}
+        data={slides}
+        keyExtractor={(s) => s.key}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, gap: 12 }}
-        renderItem={({ item, index }) => (
-          <Animated.View entering={FadeIn.delay(index * 60)}>
-            <Pressable
-              testID={`deal-card-${item.id}`}
-              onPress={() => router.push(`/product/${item.product_id}`)}
-              style={styles.card}
-            >
-              <View style={styles.badgeWrap}>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeTxt}>-{item.discount_pct}%</Text>
-                </View>
-              </View>
-              <Image source={{ uri: item.product_image }} style={styles.img} contentFit="cover" />
-              <View style={styles.body}>
-                <Text numberOfLines={1} style={styles.name}>{item.product_name}</Text>
-                <Text numberOfLines={1} style={styles.meta}>{item.product_unit}</Text>
-                <View style={styles.priceRow}>
-                  <Text style={styles.dealPrice}>₹{Math.round(item.deal_price)}</Text>
-                  <Text style={styles.origPrice}>₹{Math.round(item.original_price)}</Text>
-                </View>
+        renderItem={({ item: slide, index }) => {
+          if (slide.deal) {
+            const item = slide.deal;
+            return (
+              <Animated.View entering={FadeIn.delay(index * 60)}>
                 <Pressable
-                  testID={`deal-add-${item.id}`}
-                  onPress={(e) => {
-                    e.stopPropagation?.();
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    addToCart({
-                      product_id: item.product_id,
-                      name: item.product_name,
-                      price: item.deal_price,
-                      quantity: 1,
-                      cut_type: item.cut_type || "whole",
-                      unit: item.product_unit,
-                      image: item.product_image,
-                    });
-                  }}
-                  style={styles.grabBtn}
+                  testID={`deal-card-${item.id}`}
+                  onPress={() => router.push(`/product/${item.product_id}`)}
+                  style={styles.card}
                 >
-                  <Ionicons name="flash" size={13} color={theme.colors.onBrand} />
-                  <Text style={styles.grabTxt}>Grab</Text>
+                  <View style={styles.badgeWrap}>
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeTxt}>-{item.discount_pct}%</Text>
+                    </View>
+                  </View>
+                  <Image source={{ uri: item.product_image }} style={styles.img} contentFit="cover" />
+                  <View style={styles.body}>
+                    <Text numberOfLines={1} style={styles.name}>{item.product_name}</Text>
+                    <Text numberOfLines={1} style={styles.meta}>{item.product_unit}</Text>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.dealPrice}>₹{Math.round(item.deal_price)}</Text>
+                      <Text style={styles.origPrice}>₹{Math.round(item.original_price)}</Text>
+                    </View>
+                    <Pressable
+                      testID={`deal-add-${item.id}`}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        addToCart({
+                          product_id: item.product_id,
+                          name: item.product_name,
+                          price: item.deal_price,
+                          quantity: 1,
+                          cut_type: item.cut_type || "whole",
+                          unit: item.product_unit,
+                          image: item.product_image,
+                        });
+                      }}
+                      style={styles.grabBtn}
+                    >
+                      <Ionicons name="flash" size={13} color={theme.colors.onBrand} />
+                      <Text style={styles.grabTxt}>Grab</Text>
+                    </Pressable>
+                  </View>
                 </Pressable>
-              </View>
-            </Pressable>
-          </Animated.View>
-        )}
+              </Animated.View>
+            );
+          }
+          const p = slide.pick;
+          return (
+            <Animated.View entering={FadeIn.delay(index * 60)}>
+              <Pressable
+                testID={`pick-card-${p.id}`}
+                onPress={() => router.push(`/product/${p.id}`)}
+                style={styles.card}
+              >
+                <Image source={{ uri: p.image }} style={styles.img} contentFit="cover" />
+                <View style={styles.body}>
+                  <Text numberOfLines={1} style={styles.name}>{p.name}</Text>
+                  <Text numberOfLines={1} style={styles.meta}>{p.unit}</Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.dealPrice}>₹{Math.round(p.price)}</Text>
+                  </View>
+                  <Pressable
+                    testID={`pick-add-${p.id}`}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      addToCart({
+                        product_id: p.id,
+                        name: p.name,
+                        price: p.price,
+                        quantity: 1,
+                        cut_type: p.cut_type,
+                        unit: p.unit,
+                        image: p.image,
+                      });
+                    }}
+                    style={styles.grabBtn}
+                  >
+                    <Ionicons name="add" size={13} color={theme.colors.onBrand} />
+                    <Text style={styles.grabTxt}>Add</Text>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Animated.View>
+          );
+        }}
       />
     </View>
   );
@@ -220,7 +276,7 @@ export function QuickBuyAgain() {
 }
 
 
-const CARD_W = 158;
+const CARD_W = 138;
 
 const styles = StyleSheet.create({
   section: { marginTop: 18 },
@@ -254,7 +310,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
   },
   badgeTxt: { color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
-  img: { width: CARD_W, height: 100 },
+  img: { width: CARD_W, height: 84 },
   body: { padding: 10, gap: 3 },
   name: { fontSize: 13, fontWeight: "700", color: theme.colors.onSurface },
   meta: { fontSize: 11, color: theme.colors.onSurfaceMuted },
@@ -270,13 +326,13 @@ const styles = StyleSheet.create({
 
   // Quick buy again
   quickCard: {
-    width: 200, flexDirection: "row", alignItems: "stretch",
+    width: 180, flexDirection: "row", alignItems: "stretch",
     backgroundColor: theme.colors.surface2,
     borderRadius: theme.radius.lg, overflow: "hidden",
     borderWidth: 1, borderColor: "rgba(79,163,227,0.15)",
     ...theme.shadow.sm,
   },
-  quickImg: { width: 74, height: "100%" },
+  quickImg: { width: 62, height: "100%" },
   quickName: { fontSize: 13, fontWeight: "700", color: theme.colors.onSurface },
   quickMeta: { fontSize: 11, color: theme.colors.onSurfaceMuted, marginTop: 2 },
   quickBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 },

@@ -9,7 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -72,7 +72,8 @@ export default function Checkout() {
     }
   }, [user, params.address_id]);
 
-  useEffect(() => { load(); }, [load]);
+  // Reload on focus so newly added / picked addresses appear immediately
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const deliveryFee = selectedSlot?.fee ?? 0;
   const total = useMemo(() => cartTotal + deliveryFee + handlingFee, [cartTotal, deliveryFee, handlingFee]);
@@ -185,7 +186,7 @@ export default function Checkout() {
           ) : (
             <Pressable
               testID="ck-add-addr"
-              onPress={() => router.push({ pathname: "/addresses" })}
+              onPress={() => (user ? router.push({ pathname: "/addresses", params: { pick: "1" } }) : router.push({ pathname: "/otp", params: { redirect: "/checkout" } }))}
               style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 10 }]}
             >
               <Ionicons name="add-circle" size={22} color={theme.colors.brand} />

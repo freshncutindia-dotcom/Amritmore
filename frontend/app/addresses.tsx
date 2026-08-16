@@ -111,14 +111,20 @@ export default function Addresses() {
     setBusy(true);
     try {
       const body = { label, name, mobile, line1, line2, area, pincode, is_default: isDefault };
+      let saved: any = null;
       if (editing) {
-        await apiFetch(`/addresses/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
+        saved = await apiFetch(`/addresses/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
       } else {
-        await apiFetch("/addresses", { method: "POST", body: JSON.stringify(body) });
+        saved = await apiFetch("/addresses", { method: "POST", body: JSON.stringify(body) });
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowForm(false);
       setEditing(null);
+      // In pick mode, immediately return the newly saved address to checkout
+      if (isPick && saved?.id) {
+        router.replace({ pathname: "/checkout", params: { address_id: saved.id } });
+        return;
+      }
       await load();
     } catch (e: any) {
       Alert.alert("Error", e.message || "Could not save address");

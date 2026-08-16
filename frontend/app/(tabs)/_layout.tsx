@@ -6,6 +6,8 @@ import Animated, { useAnimatedStyle, withSpring } from "react-native-reanimated"
 import { useEffect } from "react";
 import { useSharedValue } from "react-native-reanimated";
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { theme } from "@/src/theme";
 import { useApp } from "@/src/store";
 
@@ -31,6 +33,8 @@ function CartBadge() {
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 12);
   return (
     <Tabs
       detachInactiveScreens
@@ -43,7 +47,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: "#1F2A3A",
         tabBarInactiveTintColor: "rgba(31,42,58,0.55)",
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600", marginTop: -2 },
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, { height: 58 + bottomPad, paddingBottom: bottomPad }],
         tabBarBackground: () =>
           Platform.OS === "ios" ? (
             <>
@@ -97,9 +101,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(255,255,255,0.9)",
-    height: 78,
-    paddingTop: 8,
-    paddingBottom: 20,
+    paddingTop: 6,
     backgroundColor: "transparent",
   },
   badge: {
