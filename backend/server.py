@@ -35,6 +35,8 @@ DB_NAME = os.environ["DB_NAME"]
 JWT_SECRET = os.environ["JWT_SECRET_KEY"]
 ADMIN_EMAIL = os.environ["ADMIN_EMAIL"]
 ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
+NOTIFY_EMAIL = os.environ.get("NOTIFY_EMAIL", "").strip() or os.environ["ADMIN_EMAIL"]
+ADMIN_MOBILE = os.environ.get("ADMIN_MOBILE", "")
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "sk_test_emergent")
 JWT_ALGO = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7
@@ -1148,7 +1150,7 @@ def _assert_safe_email(subject: str, html: str) -> None:
 
 async def get_notify_email() -> str:
     doc = await db.settings.find_one({"key": "notify_email"})
-    return ((doc or {}).get("value") or ADMIN_EMAIL).lower()
+    return ((doc or {}).get("value") or NOTIFY_EMAIL).lower()
 
 
 async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
@@ -2117,6 +2119,14 @@ async def seed_database():
         upsert=True,
     )
     logger.info("Admin user ensured (password synced from env)")
+    # Seed default notification contacts (kept if admin already changed them in dashboard)
+    await db.settings.update_one(
+        {"key": "notify_email"}, {"$setOnInsert": {"value": NOTIFY_EMAIL.lower()}}, upsert=True,
+    )
+    if ADMIN_MOBILE:
+        await db.settings.update_one(
+            {"key": "admin_mobile"}, {"$set": {"value": ADMIN_MOBILE}}, upsert=True,
+        )
 
     # Re-seed products whenever SEED_VERSION changes
     meta = await db.meta.find_one({"key": "seed_version"})
